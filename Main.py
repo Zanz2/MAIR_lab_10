@@ -3,9 +3,11 @@ import pandas as pd
 import sys
 import operator
 import random
+import matplotlib
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import tree
+import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 
 filename = "dialog_acts.dat"
@@ -17,16 +19,15 @@ with open(filename) as f:
 	content = f.readlines()
 	for line in content: # I open the file, read its contents line by line, remove the trailing newline character, and convert them to lowercase
 		line = line.rstrip("\n").lower()
-		line = line.split(" ", 1) # this just seperates te first dialog_act from the remaining sentance
+		line = line.split(" ", 1) # this just seperates te first dialog_act from the remaining sentence
 		line_array.append(line)
 
-arr_length = (len(line_array)) # This is the number of sentances in the entire file
-test_part_length = int(arr_length*0.15)+1 # Here is the number that will be in the Testing split (+1 because it rounded down)
+arr_length = (len(line_array)) # This is the number of sentences in the entire file
 training_part_length= int(arr_length*0.85) # Here is the number that will be in the Training split
 
 #random.shuffle(line_array) # Would randomize the contents of test and training array, we might need commands like this later for cross validation
-training_array = line_array[0:training_part_length]
-test_array = line_array[training_part_length:(training_part_length+test_part_length)]
+training_array = line_array[:training_part_length]
+test_array = line_array[training_part_length:]
 dialog_acts = []
 dialog_acts_counter = {}
 
@@ -42,14 +43,13 @@ def majority_classifier(dataset = None):
 	correct_count = 0
 	counter_total = 0
 	majority_class = max(dialog_acts_counter.items(), key=operator.itemgetter(1))[0] # Here it returns the dialogue act that occurs the most times, in this case "inform"
-	if(dataset):
+	if dataset:
 		for full_sentence in dataset:
-			if(full_sentence[0] == majority_class):
+			if full_sentence[0] == majority_class:
 				correct_count += 1
-				counter_total += 1
-			else:
-				counter_total += 1
+			counter_total += 1
 		print("Prediction accuracy: "+str(correct_count/counter_total))
+
 	else:
 		while(True):
 			test_text = input("Please input a sentence: ")
@@ -61,8 +61,8 @@ def majority_classifier(dataset = None):
 
 def rule_based(dataset = None):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
-	#  (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
-	prediction_dict = {"bye": "bye","goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts"}
+	#  (example: if sentence contains 'is there' we classify it as reqalts dialogue act)
+	prediction_dict = {"bye": "bye", "goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts"}
 	correct_count = 0
 	counter_total = 0
 	if (dataset):
@@ -71,9 +71,7 @@ def rule_based(dataset = None):
 				if key in full_sentence[1]:
 					if prediction == full_sentence[0]:
 						correct_count += 1
-						break
-					else:
-						break
+					break
 			counter_total += 1
 		print("Prediction accuracy: " + str(correct_count / counter_total))
 	else:
@@ -93,24 +91,24 @@ def rule_based(dataset = None):
 				break
 
 
-vectorizer = TfidfVectorizer() # This will change our sentances into vectors of words, will calculate occurances and also normalize them
+vectorizer = TfidfVectorizer() # This will change our sentences into vectors of words, will calculate occurances and also normalize them
 #more: https://scikit-learn.org/stable/modules/feature_extraction.html)
 vectorizer_bigram = TfidfVectorizer(ngram_range=(1, 2),token_pattern=r'\b\w+\b', min_df=1)
 corpus = []
 correct_classes_mapping = {}
 correct_classes = []
 unique_counter = 0
-for full_sentance in training_array:
-	corpus.append(full_sentance[1]) # This will make an array with just sentances, no classes
-	if full_sentance[0] in correct_classes_mapping: # This changes our predicted classes to unique integers, because thats what the documentation says to do
-		correct_classes.append(correct_classes_mapping[full_sentance[0]])
+for full_sentence in training_array:
+	corpus.append(full_sentence[1]) # This will make an array with just sentences, no classes
+	if full_sentence[0] in correct_classes_mapping: # This changes our predicted classes to unique integers, because thats what the documentation says to do
+		correct_classes.append(correct_classes_mapping[full_sentence[0]])
 	else:
-		correct_classes_mapping[full_sentance[0]] = unique_counter
-		correct_classes.append(correct_classes_mapping[full_sentance[0]])
+		correct_classes_mapping[full_sentence[0]] = unique_counter
+		correct_classes.append(correct_classes_mapping[full_sentence[0]])
 		unique_counter += 1
 
 #print(len(corpus))
-#print(len(correct_classes)) # This should match, every sentance in corpus should have a predicted class
+#print(len(correct_classes)) # This should match, every sentence in corpus should have a predicted class
 vectorized_training_data = vectorizer.fit_transform(corpus)
 bigram_vectorized_training_data = vectorizer_bigram.fit_transform(corpus) # if needed later
 # the first one splits each word, which is called 1 gram, 2 gram (bigram i guess) splitting would be where it would split by 2 words
@@ -119,7 +117,7 @@ bigram_vectorized_training_data = vectorizer_bigram.fit_transform(corpus) # if n
 
 # I played around with the prints below to see how it works and what they contain
 #print(vectorizer.get_feature_names())
-#print(vectorizer.vocabulary_.get('ad')) # should be 3 since its item with index 3 in feature names array
+#print(vectorizer.vocabulary_.get('thisworddoesntexist')) # should be 3 since its item with index 3 in feature names array
 #print(training_array)
 #print(test_array)
 #print(len(training_array)) # 21675 samples with:
@@ -129,11 +127,13 @@ bigram_vectorized_training_data = vectorizer_bigram.fit_transform(corpus) # if n
 # We now have our bag of words (1 gram and bigram)
 
 def decision_tree(dataset = None, assigned_classes = None): #https://scikit-learn.org/stable/modules/tree.html
-	clf = tree.DecisionTreeClassifier()
-	if(dataset is not None and assigned_classes is not None):
+	clf = tree.DecisionTreeClassifier(max_depth=10)
+	if dataset is not None and assigned_classes is not None:
 		clf.fit(dataset, assigned_classes) #We train our tree
 		# Now have to vectorize the test data and predict it with the above model, then
 		# create a function to check how accurate it was
+		tree.plot_tree(clf)
+		print("debug")
 		#clf.predict()
 
 
