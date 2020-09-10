@@ -27,16 +27,15 @@ training_part_length= int(arr_length*0.85) # Here is the number that will be in 
 #random.shuffle(line_array) # Would randomize the contents of test and training array, we might need commands like this later for cross validation
 training_array = line_array[0:training_part_length]
 test_array = line_array[training_part_length:(training_part_length+test_part_length)]
-dialog_acts = []
+# dialog_acts = []
 dialog_acts_counter = {}
 
 for element in training_array:  # Here I find all the unique dialogue act categories, and count how many occurences there are for each category
-	if (element[0]) not in dialog_acts:
-		dialog_acts.append(element[0])
-	if (element[0] in dialog_acts_counter):
-		dialog_acts_counter[element[0]] += 1
-	else:
+	# if (element[0]) not in dialog_acts:
+	# 	dialog_acts.append(element[0])
+	if element[0] not in dialog_acts_counter:
 		dialog_acts_counter[element[0]] = 0
+	dialog_acts_counter[element[0]] += 1
 
 def majority_classifier(dataset = None):
 	correct_count = 0
