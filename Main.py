@@ -37,18 +37,20 @@ for element in training_array:  # Here I find all the unique dialogue act catego
 		dialog_acts_counter[element[0]] = 0
 	dialog_acts_counter[element[0]] += 1
 
+
+def calculate_precision(true_labels, predicted_labels):
+	length = len(true_labels)
+	assert(len(predicted_labels) == length)
+	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
+
+
 def majority_classifier(dataset = None):
 	correct_count = 0
 	counter_total = 0
 	majority_class = max(dialog_acts_counter.items(), key=operator.itemgetter(1))[0] # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	if(dataset):
-		for full_sentence in dataset:
-			if(full_sentence[0] == majority_class):
-				correct_count += 1
-				counter_total += 1
-			else:
-				counter_total += 1
-		print("Prediction accuracy: "+str(correct_count/counter_total))
+		predictions = [majority_class for _ in range(len(dataset))]
+		print(f"Prediction accuracy: {calculate_precision([s[0] for s in dataset], predictions)}")
 	else:
 		while(True):
 			test_text = input("Please input a sentence: ")
