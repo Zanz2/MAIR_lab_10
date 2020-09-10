@@ -38,24 +38,22 @@ for element in training_array:  # Here I find all the unique dialogue act catego
 	dialog_acts_counter[element[0]] += 1
 
 
-def calculate_precision(true_labels, predicted_labels):
+def calculate_accuracy(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
 
 
 def majority_classifier(dataset = None):
-	correct_count = 0
-	counter_total = 0
-	majority_class = max(dialog_acts_counter.items(), key=operator.itemgetter(1))[0] # Here it returns the dialogue act that occurs the most times, in this case "inform"
-	if(dataset):
+	majority_class = max(dialog_acts_counter.items(), key=operator.itemgetter(1))[0] #  Here it returns the dialogue act that occurs the most times, in this case "inform"
+	if dataset:
 		predictions = [majority_class for _ in range(len(dataset))]
-		print(f"Prediction accuracy: {calculate_precision([s[0] for s in dataset], predictions)}")
+		print(f"Prediction accuracy: {calculate_accuracy([s[0] for s in dataset], predictions)}")
 	else:
-		while(True):
+		while True:
 			test_text = input("Please input a sentence: ")
 			sentence = str(test_text)
-			print("we classify this sentence as: "+majority_class)
+			print("we classify this sentence as: " + majority_class)
 			test_text = input("Enter 0 to exit, anything else to continue")
 			if str(test_text) == "0":
 				break
@@ -64,21 +62,18 @@ def rule_based(dataset = None):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	#  (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
 	prediction_dict = {"bye": "bye","goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts", "what" : "request", "is it" : "confirm", "i" : "inform", "no" : "negate", "yes" : "affirm", "hello" : "hello", "im" : "inform"}
-	correct_count = 0
-	counter_total = 0
-	if (dataset):
+	if dataset:
+		predictions = []
 		for full_sentence in dataset:
+			p = ""
 			for key, prediction in prediction_dict.items():
 				if key in full_sentence[1]:
-					if prediction == full_sentence[0]:
-						correct_count += 1
-						break
-					else:
-						break
-			counter_total += 1
-		print("Prediction accuracy: " + str(correct_count / counter_total))
+					p = prediction
+					break
+			predictions.append(p)
+		print(f"Prediction accuracy: {calculate_accuracy([s[0] for s in dataset], predictions)}")
 	else:
-		while (True):
+		while True:
 			test_text = input("Please input a sentence: ")
 			sentence = str(test_text)
 			found = False
