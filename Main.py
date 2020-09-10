@@ -61,7 +61,7 @@ def majority_classifier(dataset = None):
 def rule_based(dataset = None):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	#  (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
-	prediction_dict = {"bye": "bye","goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts"}
+	prediction_dict = {"bye": "bye","goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts", "what" : "request", "is it" : "confirm", "i" : "inform", "no" : "negate", "yes" : "affirm", "hello" : "hello", "im" : "inform"}
 	correct_count = 0
 	counter_total = 0
 	if (dataset):
