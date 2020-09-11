@@ -26,12 +26,10 @@ arr_length = (len(line_array)) # This is the number of sentences in the entire f
 training_part_length= int(arr_length*0.85) # Here is the number that will be in the Training split
 
 #random.shuffle(line_array) # Would randomize the contents of test and training array, we might need commands like this later for cross validation
-training_array = line_array[:training_part_length]
-test_array = line_array[training_part_length:]
 # dialog_acts = []
 dialog_acts_counter = {}
 
-for element in training_array:  # Here I find all the unique dialogue act categories, and count how many occurences there are for each category
+for element in line_array[:training_part_length]:  # Here I find all the unique dialogue act categories, and count how many occurences there are for each category
 	# if (element[0]) not in dialog_acts:
 	# 	dialog_acts.append(element[0])
 	if element[0] not in dialog_acts_counter:
@@ -97,7 +95,7 @@ corpus = []
 correct_classes_mapping = {}
 correct_classes = []
 unique_counter = 0
-for full_sentence in training_array:
+for full_sentence in line_array:
 	corpus.append(full_sentence[1]) # This will make an array with just sentences, no classes
 	if full_sentence[0] in correct_classes_mapping: # This changes our predicted classes to unique integers, because thats what the documentation says to do
 		correct_classes.append(correct_classes_mapping[full_sentence[0]])
@@ -106,10 +104,17 @@ for full_sentence in training_array:
 		correct_classes.append(correct_classes_mapping[full_sentence[0]])
 		unique_counter += 1
 
+
+training_corpus = line_array[:training_part_length]
+training_classes = correct_classes[:training_part_length]
+
+test_corpus = line_array[training_part_length:]
+test_classes = correct_classes[training_part_length:]
+
 #print(len(corpus))
 #print(len(correct_classes)) # This should match, every sentence in corpus should have a predicted class
-vectorized_training_data = vectorizer.fit_transform(corpus)
-bigram_vectorized_training_data = vectorizer_bigram.fit_transform(corpus) # if needed later
+vectorized_training_data = vectorizer.fit_transform(training_corpus)
+bigram_vectorized_training_data = vectorizer_bigram.fit_transform(training_corpus) # if needed later
 # the first one splits each word, which is called 1 gram, 2 gram (bigram i guess) splitting would be where it would split by 2 words
 # Example ( here i am -> 1 gram ["here", "i", "am"], 2 gram ["here i", "i am"]
 # (these words are changed into unique ids, but just as an example)
@@ -131,7 +136,9 @@ def decision_tree(dataset = None, assigned_classes = None): #https://scikit-lear
 		clf.fit(dataset, assigned_classes) #We train our tree
 		# Now have to vectorize the test data and predict it with the above model, then
 		# create a function to check how accurate it was
-		tree.plot_tree(clf)
+		# basically what is done around line 100 for test data too
+		tree.plot_tree(clf, fontsize=5)
+		plt.show()
 		print("debug")
 		#clf.predict()
 
@@ -155,9 +162,9 @@ while(True):
 	if command == "0":
 		break
 	elif command == "1":
-		majority_classifier(test_array)
+		majority_classifier(line_array[training_part_length:])
 	elif command == "2":
-		rule_based(test_array)
+		rule_based(line_array[training_part_length:])
 	elif command == "1i":
 		majority_classifier()
 	elif command == "2i":
