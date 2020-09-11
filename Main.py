@@ -23,15 +23,12 @@ with open(filename) as f:
 		line_array.append(line)
 
 arr_length = (len(line_array)) # This is the number of sentences in the entire file
-training_part_length= int(arr_length*0.85) # Here is the number that will be in the Training split
+training_part_length = int(arr_length*0.85) # Here is the number that will be in the Training split
 
-#random.shuffle(line_array) # Would randomize the contents of test and training array, we might need commands like this later for cross validation
-# dialog_acts = []
+# random.shuffle(line_array) # !IMPORTANT! Would randomize the contents of test and training array, we might need commands like this later for cross validation
 dialog_acts_counter = {}
 
 for element in line_array[:training_part_length]:  # Here I find all the unique dialogue act categories, and count how many occurences there are for each category
-	# if (element[0]) not in dialog_acts:
-	# 	dialog_acts.append(element[0])
 	if element[0] not in dialog_acts_counter:
 		dialog_acts_counter[element[0]] = 0
 	dialog_acts_counter[element[0]] += 1
@@ -87,10 +84,6 @@ def rule_based(dataset = None):
 			if str(test_text) == "0":
 				break
 
-
-vectorizer = TfidfVectorizer() # This will change our sentences into vectors of words, will calculate occurances and also normalize them
-#more: https://scikit-learn.org/stable/modules/feature_extraction.html)
-vectorizer_bigram = TfidfVectorizer(ngram_range=(1, 2),token_pattern=r'\b\w+\b', min_df=1)
 corpus = []
 correct_classes_mapping = {}
 correct_classes = []
@@ -105,47 +98,55 @@ for full_sentence in line_array:
 		unique_counter += 1
 
 
-training_corpus = line_array[:training_part_length]
+training_corpus = corpus[:training_part_length]
 training_classes = correct_classes[:training_part_length]
 
-test_corpus = line_array[training_part_length:]
+test_corpus = corpus[training_part_length:]
 test_classes = correct_classes[training_part_length:]
 
+
+vectorizer = TfidfVectorizer() # This will change our sentences into vectors of words, will calculate occurances and also normalize them
+#more: https://scikit-learn.org/stable/modules/feature_extraction.html)
+vectorizer_bigram = TfidfVectorizer(ngram_range=(1, 2),token_pattern=r'\b\w+\b', min_df=1)
 #print(len(corpus))
 #print(len(correct_classes)) # This should match, every sentence in corpus should have a predicted class
-vectorized_training_data = vectorizer.fit_transform(training_corpus)
-bigram_vectorized_training_data = vectorizer_bigram.fit_transform(training_corpus) # if needed later
+
+#https://machinelearningmastery.com/prepare-text-data-machine-learning-scikit-learn/
+vectorizer.fit(corpus) # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
+
+vectorized_training_data = vectorizer.transform(training_corpus) # transforms the models so they use that matrix as a representation
+vectorized_test_data = vectorizer.transform(test_corpus)
+
+# bigram_vectorized_training_data = vectorizer_bigram.fit_transform(training_corpus) # if needed later
 # the first one splits each word, which is called 1 gram, 2 gram (bigram i guess) splitting would be where it would split by 2 words
 # Example ( here i am -> 1 gram ["here", "i", "am"], 2 gram ["here i", "i am"]
 # (these words are changed into unique ids, but just as an example)
 
 # I played around with the prints below to see how it works and what they contain
 #print(vectorizer.get_feature_names())
-#print(vectorizer.vocabulary_.get('thisworddoesntexist')) # should be 3 since its item with index 3 in feature names array
-#print(training_array)
-#print(test_array)
+#print(vectorizer.vocabulary_.get('thisworddoesntexist')) # if word is not in vocabulary None is returned
+
 #print(len(training_array)) # 21675 samples with:
 #print(len(vectorizer.vocabulary_)) # 711 features
 #print(vectorized_training_data.toarray()) # the dimensions of this are 21676 x 711
 
-# We now have our bag of words (1 gram and bigram)
+# We now have our bag of words
 
-def decision_tree(dataset = None, assigned_classes = None): #https://scikit-learn.org/stable/modules/tree.html
-	clf = tree.DecisionTreeClassifier(max_depth=10)
-	if dataset is not None and assigned_classes is not None:
+def decision_tree(dataset, assigned_classes, test_dataset = None, test_classes = None ): #https://scikit-learn.org/stable/modules/tree.html
+	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=10) # the max depth can be set imperically, but if we set it too big there will be overfitting
+	# I set criterion as entropy and split as best, so hopefully it will split on inform class
+	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
+	if test_dataset is not None and test_classes is not None:
 		clf.fit(dataset, assigned_classes) #We train our tree
-		# Now have to vectorize the test data and predict it with the above model, then
-		# create a function to check how accurate it was
-		# basically what is done around line 100 for test data too
-		tree.plot_tree(clf, fontsize=5)
-		plt.show()
-		print("debug")
-		clf.predict()
+		#tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
+		#plt.show()
 
+		results = clf.predict(test_dataset)
+		print("Decision tree accuracy on test data: "+str(calculate_accuracy(results, test_classes)))
+	else:
+		print("this should do the user input thing WIP")
 
-decision_tree(vectorized_training_data,training_classes)
-
-def ff_nn(dataset = None): #feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
+def ff_nn(dataset, assigned_classes, test_dataset = None, test_classes = None ): #feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='lbfgs', alpha=1e-5,hidden_layer_sizes=(5, 2), random_state=1)
 
 
@@ -154,8 +155,12 @@ while(True):
 	print("0 for exit")
 	print("1 for Majority classifier on test data")
 	print("2 for manual prediction on test data")
+	print("3 for Decision tree on test data")
+	print("4 for Feed forward neural network on test data")
 	print("1i for Majority classifier on user input")
 	print("2i for manual prediction on user input")
+	print("3i for Decision tree on user input")
+	print("4i for Feed forward neural network on user input")
 
 	test_text = input()
 	command = str(test_text)
@@ -165,10 +170,18 @@ while(True):
 		majority_classifier(line_array[training_part_length:])
 	elif command == "2":
 		rule_based(line_array[training_part_length:])
+	elif command == "3":
+		decision_tree(vectorized_training_data, training_classes, vectorized_test_data, test_classes)
+	elif command == "4":
+		ff_nn(vectorized_training_data, training_classes, vectorized_test_data, test_classes)
 	elif command == "1i":
 		majority_classifier()
 	elif command == "2i":
 		rule_based()
+	elif command == "3i":
+		decision_tree(vectorized_training_data, training_classes)
+	elif command == "4i":
+		ff_nn(vectorized_training_data, training_classes)
 	else:
 		break
 
