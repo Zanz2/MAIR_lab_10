@@ -136,21 +136,34 @@ def decision_tree(dataset, assigned_classes, test_dataset = None, test_classes =
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=10) # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
+
+	# !!!!IMPORTANT!!!! im 80% sure the model is overfitting to the data, so we can discuss possible solutions
+	# It does get 86% accuracy on validation sets though, but it should be higher probably
+
+	clf.fit(dataset, assigned_classes)  # We train our tree
 	if test_dataset is not None and test_classes is not None:
-		clf.fit(dataset, assigned_classes) #We train our tree
 		#tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 		#plt.show()
 
 		results = clf.predict(test_dataset)
 		print("Decision tree accuracy on test data: "+str(calculate_accuracy(results, test_classes)))
 	else:
-		print("this should do the user input thing WIP")
+		while True:
+			test_text = input("Please input a sentence: ")
+			sentence = vectorizer.transform([str(test_text)])
+			results = clf.predict(sentence)
+			for key, value in correct_classes_mapping.items():  # for name, age in dictionary.iteritems():  (for Python 2.x)
+				if value == results[0]:
+					print("The sentance is classified as: " + str(key))
+			test_text = input("Enter 0 to exit, anything else to continue")
+			if str(test_text) == "0":
+				break
 
 def ff_nn(dataset, assigned_classes, test_dataset = None, test_classes = None ): #feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='lbfgs', alpha=1e-5,hidden_layer_sizes=(5, 2), random_state=1)
+	print("Do the prediction as above then the user input thing")
 
-
-while(True):
+while True :
 	print("Enter")
 	print("0 for exit")
 	print("1 for Majority classifier on test data")
