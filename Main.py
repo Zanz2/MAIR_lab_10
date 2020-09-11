@@ -140,10 +140,10 @@ def decision_tree(dataset = None, assigned_classes = None): #https://scikit-lear
 		tree.plot_tree(clf, fontsize=5)
 		plt.show()
 		print("debug")
-		#clf.predict()
+		clf.predict()
 
 
-decision_tree(vectorized_training_data,correct_classes)
+decision_tree(vectorized_training_data,training_classes)
 
 def ff_nn(dataset = None): #feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='lbfgs', alpha=1e-5,hidden_layer_sizes=(5, 2), random_state=1)
