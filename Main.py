@@ -97,12 +97,21 @@ for full_sentence in line_array:
 		correct_classes.append(correct_classes_mapping[full_sentence[0]])
 		unique_counter += 1
 
+def get_class_label(target_class_id):
+	for class_label, class_id in correct_classes_mapping.items():
+		if class_id == target_class_id:
+			return class_label
+
+correct_labels = np.array(line_array)
+correct_labels = correct_labels[:, :1].flatten() # Extracts only the first column from the array (class labels)
 
 training_corpus = corpus[:training_part_length]
-training_classes = correct_classes[:training_part_length]
+training_classes = correct_classes[:training_part_length] #Classes are just ids, the id represents a class label from the mapping
+training_labels = correct_labels[:training_part_length]
 
 test_corpus = corpus[training_part_length:]
 test_classes = correct_classes[training_part_length:]
+test_labels = correct_labels[training_part_length:]
 
 
 vectorizer = TfidfVectorizer() # This will change our sentences into vectors of words, will calculate occurances and also normalize them
@@ -137,8 +146,8 @@ def decision_tree(dataset, assigned_classes, test_dataset = None, test_classes =
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
 
-	# !!!!IMPORTANT!!!! im 80% sure the model is overfitting to the data, so we can discuss possible solutions
-	# It does get 86% accuracy on validation sets though, but it should be higher probably
+	# !IMPORTANT! the model might be overfitting to the data, so we can discuss this
+	# It does get 86% accuracy on validation sets
 
 	clf.fit(dataset, assigned_classes)  # We train our tree
 	if test_dataset is not None and test_classes is not None:
@@ -152,16 +161,31 @@ def decision_tree(dataset, assigned_classes, test_dataset = None, test_classes =
 			test_text = input("Please input a sentence: ")
 			sentence = vectorizer.transform([str(test_text)])
 			results = clf.predict(sentence)
-			for key, value in correct_classes_mapping.items():  # for name, age in dictionary.iteritems():  (for Python 2.x)
-				if value == results[0]:
-					print("The sentance is classified as: " + str(key))
+			print("The sentance is classified as: " + str(get_class_label(results[0])))
 			test_text = input("Enter 0 to exit, anything else to continue")
 			if str(test_text) == "0":
 				break
 
 def ff_nn(dataset, assigned_classes, test_dataset = None, test_classes = None ): #feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='lbfgs', alpha=1e-5,hidden_layer_sizes=(5, 2), random_state=1)
-	print("Do the prediction as above then the user input thing")
+	clf = MLPClassifier(solver='adam', alpha=1e-5, random_state=1, early_stopping=False) # will stop early if small validation subset isnt improving while training
+	clf.fit(dataset, assigned_classes) # takes around a minute or so, depending on your pc
+	# if its taking too long on your pc, add this to the function parameters above: hidden_layer_sizes=(5, 2)
+
+	if test_dataset is not None and test_classes is not None:
+		results = clf.predict(test_dataset) # Accuracy is 0.9866 on validation sets
+		print("Feed forward neural network accuracy on test data: " + str(calculate_accuracy(results, test_classes)))
+	else:
+		while True:
+			test_text = input("Please input a sentence: ")
+			sentence = vectorizer.transform([str(test_text)])
+
+			print("The sentance is classified as: "+ str(clf.predict(sentence)))
+			test_text = input("Enter 0 to exit, anything else to continue")
+			if str(test_text) == "0":
+				break
+
+
+
 
 while True :
 	print("Enter")
@@ -186,7 +210,7 @@ while True :
 	elif command == "3":
 		decision_tree(vectorized_training_data, training_classes, vectorized_test_data, test_classes)
 	elif command == "4":
-		ff_nn(vectorized_training_data, training_classes, vectorized_test_data, test_classes)
+		ff_nn(vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 	elif command == "1i":
 		majority_classifier()
 	elif command == "2i":
@@ -194,7 +218,7 @@ while True :
 	elif command == "3i":
 		decision_tree(vectorized_training_data, training_classes)
 	elif command == "4i":
-		ff_nn(vectorized_training_data, training_classes)
+		ff_nn(vectorized_training_data, training_labels)
 	else:
 		break
 
