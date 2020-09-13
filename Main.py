@@ -17,11 +17,44 @@ def calculate_accuracy(true_labels, predicted_labels):
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
 
 
+def calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=False):
+	length = len(true_labels)
+	assert(len(predicted_labels) == length)
+	f1scores = {}
+	for label in dialog_acts_counter:
+		true_pos, true_neg, false_pos, false_neg = 0, 0, 0, 0
+		for i in range(len(true_labels)):
+			if true_labels[i] == label:
+				if predicted_labels[i] == label:
+					true_pos += 1
+				else:
+					false_neg += 1
+			else:
+				if predicted_labels[i] == label:
+					false_pos += 1
+				else:
+					true_neg += 1
+		precision = 1. if true_pos + false_pos == 0 else true_pos / (true_pos + false_pos)
+		recall = 1. if true_pos + false_neg == 0 else true_pos / (true_pos + false_neg)
+		f1scores[label] = 2 * precision * recall / (precision + recall)
+	if weighted:
+		return sum(f1scores[label] * dialog_acts_counter[label] for label in dialog_acts_counter) / sum(dialog_acts_counter.values())
+	else:
+		return sum(f1scores.values()) / len(f1scores)
+
+
+def print_evaluation_metrics(true_labels, predicted_labels, dialog_acts_counter, name):
+	print(f"{name} evaluation metrics")
+	print(f"    Prediction Accuracy: {calculate_accuracy(true_labels, predicted_labels)}")
+	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=False)}")
+	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=True)}")
+
+
 def majority_classifier(dialog_acts_counter, dataset=None):
 	majority_class = max(dialog_acts_counter.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	if dataset:
 		predictions = [majority_class for _ in range(len(dataset))]
-		print(f"Prediction accuracy: {calculate_accuracy([s[0] for s in dataset], predictions)}")
+		print_evaluation_metrics([s[0] for s in dataset], predictions, dialog_acts_counter, "Majority Classifier")
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -31,7 +64,7 @@ def majority_classifier(dialog_acts_counter, dataset=None):
 				break
 
 
-def rule_based(dataset=None):
+def rule_based(dialog_acts_counter, dataset=None):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	# (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
 	prediction_dict = {"bye": "bye", "goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts", "what": "request", "is it": "confirm", "i": "inform", "no": "negate", "yes": "affirm", "hello": "hello", "im": "inform"}
@@ -44,7 +77,7 @@ def rule_based(dataset=None):
 					p = prediction
 					break
 			predictions.append(p)
-		print(f"Prediction accuracy: {calculate_accuracy([s[0] for s in dataset], predictions)}")
+		print_evaluation_metrics([s[0] for s in dataset], predictions, dialog_acts_counter, "Rule-based Classifier")
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -63,13 +96,8 @@ def rule_based(dataset=None):
 				break
 
 
-def get_class_label(correct_classes_mapping, target_class_id):
-	for class_label, class_id in correct_classes_mapping.items():
-		if class_id == target_class_id:
-			return class_label
-
-
-def decision_tree(vectorizer, correct_classes_mapping, dataset, assigned_classes, test_dataset=None, test_classes=None):  # https://scikit-learn.org/stable/modules/tree.html
+def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, dataset, assigned_classes, test_dataset=None, test_classes=None):  # https://scikit-learn.org/stable/modules/tree.html
+	class2label = {correct_classes_mapping[label]: label for label in correct_classes_mapping}
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=10)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
@@ -83,25 +111,26 @@ def decision_tree(vectorizer, correct_classes_mapping, dataset, assigned_classes
 		# plt.show()
 		results = clf.predict(test_dataset)
 		print(f"Decision tree accuracy on test data: {calculate_accuracy(results, test_classes)}")
+		print_evaluation_metrics([class2label[i] for i in results], [class2label[i] for i in test_classes], dialog_acts_counter, "Decision Tree")
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
 			sentence = vectorizer.transform([str(test_text)])
 			results = clf.predict(sentence)
-			print(f"The sentence (\"{test_text}\") is classified as: {get_class_label(correct_classes_mapping, results[0])}")
+			print(f"The sentence (\"{test_text}\") is classified as: {class2label[results[0]]}")
 			test_text = input("Enter 0 to exit, anything else to continue")
 			if str(test_text) == "0":
 				break
 
 
-def ff_nn(vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
+def ff_nn(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='adam', alpha=1e-5, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
 	clf.fit(dataset, assigned_classes)  # takes around a minute or so, depending on your pc
 	# if its taking too long on your pc, add this to the function parameters above: hidden_layer_sizes=(5, 2)
 
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # Accuracy is 0.9866 on validation sets
-		print(f"Feed forward neural network accuracy on test data: {calculate_accuracy(results, test_classes)}")
+		print_evaluation_metrics(results, test_classes, dialog_acts_counter, "Feed-forward Neural Network")
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -112,7 +141,7 @@ def ff_nn(vectorizer, dataset, assigned_classes, test_dataset=None, test_classes
 				break
 
 
-def sto_gr_des(vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
+def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
 	# penalty penalizes model complexity
@@ -121,7 +150,7 @@ def sto_gr_des(vectorizer, dataset, assigned_classes, test_dataset=None, test_cl
 
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # accuracy of ~97%
-		print(f"Stochastic gradient descent accuracy on test data: {calculate_accuracy(results, test_classes)}")
+		print_evaluation_metrics(results, test_classes, dialog_acts_counter, "Stochastic Gradient Descent")
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -219,8 +248,7 @@ def main():
 		print("2i for manual prediction on user input")
 		print("3i for Decision tree on user input")
 		print("4i for Feed forward neural network on user input")
-		print("5i for Stochastic gradient descent on user input") 
-
+		print("5i for Stochastic gradient descent on user input")
 		test_text = input()
 		command = str(test_text)
 		if command == "0":
@@ -228,23 +256,23 @@ def main():
 		elif command == "1":
 			majority_classifier(dialog_acts_counter, line_array[training_part_length:])
 		elif command == "2":
-			rule_based(line_array[training_part_length:])
+			rule_based(dialog_acts_counter, line_array[training_part_length:])
 		elif command == "3":
-			decision_tree(vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes)
+			decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes)
 		elif command == "4":
-			ff_nn(vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
+			ff_nn(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 		elif command == "5":
-			sto_gr_des(vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
+			sto_gr_des(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 		elif command == "1i":
 			majority_classifier(dialog_acts_counter)
 		elif command == "2i":
-			rule_based()
+			rule_based(dialog_acts_counter)
 		elif command == "3i":
-			decision_tree(vectorizer, correct_classes_mapping, vectorized_training_data, training_classes)
+			decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, vectorized_training_data, training_classes)
 		elif command == "4i":
-			ff_nn(vectorizer, vectorized_training_data, training_labels)
+			ff_nn(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels)
 		elif command == "5i":
-			sto_gr_des(vectorizer, vectorized_training_data, training_labels)
+			sto_gr_des(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels)
 		else:
 			break
 
