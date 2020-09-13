@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import SGDClassifier
 
 filename = "dialog_acts.dat"
 #Note that this dataset contains a simplification compared to the original data. In case an utterance was labeled with two different dialog acts,
