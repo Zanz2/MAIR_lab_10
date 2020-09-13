@@ -234,7 +234,7 @@ def main():
 		elif command == "4":
 			ff_nn(vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 		elif command == "5":
-			sto_gr_des(vectorized_training_data, training_labels, vectorized_test_data, test_labels)
+			sto_gr_des(vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 		elif command == "1i":
 			majority_classifier(dialog_acts_counter)
 		elif command == "2i":
