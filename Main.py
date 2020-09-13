@@ -214,10 +214,12 @@ def main():
 		print("2 for manual prediction on test data")
 		print("3 for Decision tree on test data")
 		print("4 for Feed forward neural network on test data")
+		print("5 for Stochastic gradient descent on test data")
 		print("1i for Majority classifier on user input")
 		print("2i for manual prediction on user input")
 		print("3i for Decision tree on user input")
 		print("4i for Feed forward neural network on user input")
+		print("5i for Stochastic gradient descent on user input") 
 
 		test_text = input()
 		command = str(test_text)
@@ -231,6 +233,8 @@ def main():
 			decision_tree(vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes)
 		elif command == "4":
 			ff_nn(vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)
+		elif command == "5":
+			sto_gr_des(vectorized_training_data, training_labels, vectorized_test_data, test_labels)
 		elif command == "1i":
 			majority_classifier(dialog_acts_counter)
 		elif command == "2i":
@@ -239,6 +243,8 @@ def main():
 			decision_tree(vectorizer, correct_classes_mapping, vectorized_training_data, training_classes)
 		elif command == "4i":
 			ff_nn(vectorizer, vectorized_training_data, training_labels)
+		elif command == "5i":
+			sto_gr_des(vectorizer, vectorized_training_data, training_labels)
 		else:
 			break
 
