@@ -186,8 +186,10 @@ def ff_nn(dataset, assigned_classes, test_dataset = None, test_classes = None ):
 				break
 
 def sto_gr_des(dataset, assigned_classes, test_dataset = None, test_classes = None ): #stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
-    	clf = SGDClassifier(loss = "hinge", penalty = "l2", max_iter = 8, early_stopping=False) #requires a mix_iter (maximum of iterations) of at least 7
-    	clf.fit(dataset, assigned_classes)
+    	clf = SGDClassifier(loss = "modified_huber", penalty = "l2", max_iter = 8, early_stopping=False) #requires a mix_iter (maximum of iterations) of at least 7
+    	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
+    	# penalty penalizes model complexity
+	clf.fit(dataset, assigned_classes)
     	#used the same set-up as decision trees & feed forward neural network
 	
     	if test_dataset is not None and test_classes is not None:
