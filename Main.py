@@ -184,6 +184,21 @@ def ff_nn(dataset, assigned_classes, test_dataset = None, test_classes = None ):
 			if str(test_text) == "0":
 				break
 
+def sto_gr_des(dataset, assigned_classes, test_dataset = None, test_classes = None ): #stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
+    clf = SGDClassifier(loss = "hinge", penalty = "l2", max_iter = 8, early_stopping=False) #requires a mix_iter (maximum of iterations) of at least 7
+    clf.fit(dataset, assigned_classes)
+    #used the same set-up as decision trees & feed forward neural network
+    if test_dataset is not None and test_classes is not None:
+        results = clf.predict(test_dataset) #accuracy of ~97%
+        print("Stochastic gradient descent accuracy on test data: " + str(calculate_accuracy(results, test_classes)))
+    else:
+        while True:
+            test_text = input("Please input a sentence: ")
+            sentence = vectorizer.transform([str(test_text)])
+            print("The sentence is classified as: " + str(clf.predict(sentence)))
+            test_text = input("Enter 0 to exit, anything else to continue")
+            if str(test_text) == "0":
+                break
 
 
 
