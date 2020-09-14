@@ -120,12 +120,9 @@ def rule_based(dialog_acts_counter, dataset=None):
 
 def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, dataset, assigned_classes, test_dataset=None, test_classes=None):  # https://scikit-learn.org/stable/modules/tree.html
 	class2label = {correct_classes_mapping[label]: label for label in correct_classes_mapping}
-	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
+	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=10)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-
-	# !IMPORTANT! the model might be overfitting to the data, so we can discuss this
-	# It does get 86% accuracy on validation sets
 
 	clf.fit(dataset, assigned_classes)  # We train our tree
 	if test_dataset is not None and test_classes is not None:
@@ -147,7 +144,7 @@ def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, data
 
 
 def ff_nn(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+	clf = MLPClassifier(solver='adam', alpha=1e-5, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
 	clf.fit(dataset, assigned_classes)  # takes around a minute or so, depending on your pc
 	# if its taking too long on your pc, add this to the function parameters above: hidden_layer_sizes=(5, 2)
 
@@ -174,6 +171,10 @@ def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_
 
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # accuracy of ~97%
+		for counter, element in enumerate(results):
+			if(element!=test_classes[counter]):
+				#print("bad prediction")
+				do_ting = 0
 		print_evaluation_metrics(test_classes, results, dialog_acts_counter, "Stochastic Gradient Descent")
 		return [r for r in results]
 	else:
@@ -210,6 +211,7 @@ def comparison_evaluation(dialog_acts_counter, train_line_array, vectorizer, cor
 				binary_pred = [pl == label for pl in predictions[classifier]]
 				evaluations[metric][label][classifier] = metrics[metric](binary_true, binary_pred)
 	print(evaluations)
+	plt.figure(figsize=(50, 50))
 	fig, axes = plt.subplots(len(evaluations), 1, sharex="all", sharey="all")
 	barwidth = 1 / (len(predictions) + 1)
 	numbered = [i for i in range(len(labels))]
@@ -220,7 +222,10 @@ def comparison_evaluation(dialog_acts_counter, train_line_array, vectorizer, cor
 			axes[i].bar([n + x_offset for n in numbered], [evaluations[metric][lb][classifier] for lb in labels], barwidth, label=classifier)
 		axes[i].set_xticks(numbered)
 		axes[i].set_xticklabels(labels)
+		axes[i].set_xticks(axes[i].get_xticks()[::2])
 	axes[0].legend(loc=4)
+	fig.set_size_inches(18.5*1.5, 10.5*1.5)
+	fig.savefig('metric_plot', dpi=250)
 
 
 def main():
