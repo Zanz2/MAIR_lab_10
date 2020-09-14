@@ -120,7 +120,7 @@ def rule_based(dialog_acts_counter, dataset=None):
 
 def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, dataset, assigned_classes, test_dataset=None, test_classes=None):  # https://scikit-learn.org/stable/modules/tree.html
 	class2label = {correct_classes_mapping[label]: label for label in correct_classes_mapping}
-	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=10)  # the max depth can be set imperically, but if we set it too big there will be overfitting
+	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
 
