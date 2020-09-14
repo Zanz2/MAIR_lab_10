@@ -17,7 +17,7 @@ def calculate_accuracy(true_labels, predicted_labels):
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
 
 
-def calculate_f1score(true_labels, predicted_labels):
+def count_prediction_accuracies(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert (len(predicted_labels) == length)
 	true_pos, true_neg, false_pos, false_neg = 0, 0, 0, 0
@@ -32,8 +32,22 @@ def calculate_f1score(true_labels, predicted_labels):
 				false_pos += 1
 			else:
 				true_neg += 1
-	precision = 1. if true_pos + false_pos == 0 else true_pos / (true_pos + false_pos)
-	recall = 1. if true_pos + false_neg == 0 else true_pos / (true_pos + false_neg)
+	return {"true_pos": true_pos, "true_neg": true_neg, "false_pos": false_pos, "false_neg": false_neg}
+
+
+def calculate_precision(true_labels, predicted_labels):
+	counts = count_prediction_accuracies(true_labels, predicted_labels)
+	return 1. if counts["true_pos"] + counts["false_pos"] == 0 else counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
+
+
+def calculate_recall(true_labels, predicted_labels):
+	counts = count_prediction_accuracies(true_labels, predicted_labels)
+	return 1. if counts["true_pos"] + counts["false_neg"] == 0 else counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
+
+
+def calculate_f1score(true_labels, predicted_labels):
+	precision = calculate_precision(true_labels, predicted_labels)
+	recall = calculate_recall(true_labels, predicted_labels)
 	return 2 * precision * recall / (precision + recall)
 
 
@@ -183,7 +197,8 @@ def comparison_evaluation(dialog_acts_counter, train_line_array, vectorizer, cor
 	labels = [lb for lb in dialog_acts_counter]
 	true_labels = [label for label in test_labels]
 	metrics = {
-		"accuracy": lambda t, p: calculate_accuracy(t, p),
+		"precision": lambda t, p: calculate_precision(t, p),
+		"recall": lambda t, p: calculate_recall(t, p),
 		"f1score": lambda t, p: calculate_f1score(t, p)}
 	evaluations = {}
 	for metric in metrics:
