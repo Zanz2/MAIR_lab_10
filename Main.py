@@ -147,7 +147,7 @@ def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, data
 
 
 def ff_nn(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_dataset=None, test_classes=None):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='adam', alpha=1e-5, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
 	clf.fit(dataset, assigned_classes)  # takes around a minute or so, depending on your pc
 	# if its taking too long on your pc, add this to the function parameters above: hidden_layer_sizes=(5, 2)
 
