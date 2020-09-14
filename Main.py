@@ -55,6 +55,7 @@ def majority_classifier(dialog_acts_counter, dataset=None):
 	if dataset:
 		predictions = [majority_class for _ in range(len(dataset))]
 		print_evaluation_metrics([s[0] for s in dataset], predictions, dialog_acts_counter, "Majority Classifier")
+		return predictions
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -78,6 +79,7 @@ def rule_based(dialog_acts_counter, dataset=None):
 					break
 			predictions.append(p)
 		print_evaluation_metrics([s[0] for s in dataset], predictions, dialog_acts_counter, "Rule-based Classifier")
+		return predictions
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -110,8 +112,9 @@ def decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, data
 		# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 		# plt.show()
 		results = clf.predict(test_dataset)
-		print(f"Decision tree accuracy on test data: {calculate_accuracy(results, test_classes)}")
-		print_evaluation_metrics([class2label[i] for i in results], [class2label[i] for i in test_classes], dialog_acts_counter, "Decision Tree")
+		predictions = [class2label[i] for i in results]
+		print_evaluation_metrics([class2label[i] for i in test_classes], predictions, dialog_acts_counter, "Decision Tree")
+		return predictions
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -130,7 +133,8 @@ def ff_nn(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_datas
 
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # Accuracy is 0.9866 on validation sets
-		print_evaluation_metrics(results, test_classes, dialog_acts_counter, "Feed-forward Neural Network")
+		print_evaluation_metrics(test_classes, results, dialog_acts_counter, "Feed-forward Neural Network")
+		return results
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -150,7 +154,8 @@ def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_
 
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # accuracy of ~97%
-		print_evaluation_metrics(results, test_classes, dialog_acts_counter, "Stochastic Gradient Descent")
+		print_evaluation_metrics(test_classes, results, dialog_acts_counter, "Stochastic Gradient Descent")
+		return results
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -160,6 +165,10 @@ def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_
 			if str(test_text) == "0":
 				break
 	# still misses command
+
+
+def comparison_evaluation():
+	pass
 
 
 def main():
