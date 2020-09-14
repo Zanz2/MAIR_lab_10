@@ -17,26 +17,32 @@ def calculate_accuracy(true_labels, predicted_labels):
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
 
 
+def calculate_f1score(true_labels, predicted_labels):
+	length = len(true_labels)
+	assert (len(predicted_labels) == length)
+	true_pos, true_neg, false_pos, false_neg = 0, 0, 0, 0
+	for i in range(len(true_labels)):
+		if true_labels[i]:
+			if predicted_labels[i]:
+				true_pos += 1
+			else:
+				false_neg += 1
+		else:
+			if predicted_labels[i]:
+				false_pos += 1
+			else:
+				true_neg += 1
+	precision = 1. if true_pos + false_pos == 0 else true_pos / (true_pos + false_pos)
+	recall = 1. if true_pos + false_neg == 0 else true_pos / (true_pos + false_neg)
+	return 2 * precision * recall / (precision + recall)
+
+
 def calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=False):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	f1scores = {}
 	for label in dialog_acts_counter:
-		true_pos, true_neg, false_pos, false_neg = 0, 0, 0, 0
-		for i in range(len(true_labels)):
-			if true_labels[i] == label:
-				if predicted_labels[i] == label:
-					true_pos += 1
-				else:
-					false_neg += 1
-			else:
-				if predicted_labels[i] == label:
-					false_pos += 1
-				else:
-					true_neg += 1
-		precision = 1. if true_pos + false_pos == 0 else true_pos / (true_pos + false_pos)
-		recall = 1. if true_pos + false_neg == 0 else true_pos / (true_pos + false_neg)
-		f1scores[label] = 2 * precision * recall / (precision + recall)
+		f1scores[label] = calculate_f1score([tl == label for tl in true_labels], [pl == label for pl in predicted_labels])
 	if weighted:
 		return sum(f1scores[label] * dialog_acts_counter[label] for label in dialog_acts_counter) / sum(dialog_acts_counter.values())
 	else:
@@ -134,7 +140,7 @@ def ff_nn(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_datas
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # Accuracy is 0.9866 on validation sets
 		print_evaluation_metrics(test_classes, results, dialog_acts_counter, "Feed-forward Neural Network")
-		return results
+		return [r for r in results]
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -155,7 +161,7 @@ def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_
 	if test_dataset is not None and test_classes is not None:
 		results = clf.predict(test_dataset)  # accuracy of ~97%
 		print_evaluation_metrics(test_classes, results, dialog_acts_counter, "Stochastic Gradient Descent")
-		return results
+		return [r for r in results]
 	else:
 		while True:
 			test_text = input("Please input a sentence: ")
@@ -167,8 +173,39 @@ def sto_gr_des(dialog_acts_counter, vectorizer, dataset, assigned_classes, test_
 	# still misses command
 
 
-def comparison_evaluation():
-	pass
+def comparison_evaluation(dialog_acts_counter, train_line_array, vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes, training_labels, test_labels):
+	predictions = {
+		"majority": majority_classifier(dialog_acts_counter, train_line_array),
+		"rulebased": rule_based(dialog_acts_counter, train_line_array),
+		"decisiontree": decision_tree(dialog_acts_counter, vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes),
+		"neuralnet": ff_nn(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels),
+		"sgradientdescent": sto_gr_des(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels, vectorized_test_data, test_labels)}
+	labels = [lb for lb in dialog_acts_counter]
+	true_labels = [label for label in test_labels]
+	metrics = {
+		"accuracy": lambda t, p: calculate_accuracy(t, p),
+		"f1score": lambda t, p: calculate_f1score(t, p)}
+	evaluations = {}
+	for metric in metrics:
+		evaluations[metric] = {}
+		for label in labels:
+			binary_true = [tl == label for tl in true_labels]
+			evaluations[metric][label] = {}
+			for classifier in predictions:
+				binary_pred = [pl == label for pl in predictions[classifier]]
+				evaluations[metric][label][classifier] = metrics[metric](binary_true, binary_pred)
+	print(evaluations)
+	fig, axes = plt.subplots(len(evaluations), 1, sharex="all", sharey="all")
+	barwidth = 1 / (len(predictions) + 1)
+	numbered = [i for i in range(len(labels))]
+	for i, metric in enumerate(evaluations):
+		axes[i].set_title(metric)
+		for j, classifier in enumerate(predictions):
+			x_offset = -0.5 * len(predictions) * barwidth + j * barwidth
+			axes[i].bar([n + x_offset for n in numbered], [evaluations[metric][lb][classifier] for lb in labels], barwidth, label=classifier)
+		axes[i].set_xticks(numbered)
+		axes[i].set_xticklabels(labels)
+	axes[0].legend(loc=4)
 
 
 def main():
@@ -258,6 +295,7 @@ def main():
 		print("3i for Decision tree on user input")
 		print("4i for Feed forward neural network on user input")
 		print("5i for Stochastic gradient descent on user input")
+		print("c for Comparison Evaluation")
 		test_text = input()
 		command = str(test_text)
 		if command == "0":
@@ -282,6 +320,9 @@ def main():
 			ff_nn(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels)
 		elif command == "5i":
 			sto_gr_des(dialog_acts_counter, vectorizer, vectorized_training_data, training_labels)
+		elif command == "c":
+			comparison_evaluation(dialog_acts_counter, line_array[training_part_length:], vectorizer, correct_classes_mapping, vectorized_training_data, training_classes, vectorized_test_data, test_classes, training_labels, test_labels)
+			break  # break out of loop to execute the plot.
 		else:
 			break
 
