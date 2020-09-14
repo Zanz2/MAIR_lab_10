@@ -140,7 +140,6 @@ def rule_based(data, dataset):
 	return predictions
 
 
-
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
