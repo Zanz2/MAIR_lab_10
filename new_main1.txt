@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 
+#Function calls at bottom change
+#calculate evaluations data.test corpus
+
 class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
@@ -18,7 +21,7 @@ class DataElements:
 		self.dialog_acts_counter = self.__count_occurrences()
 		self.corpus = [sentence[1] for sentence in self.original_data]
 		self.correct_labels = [sentence[0] for sentence in self.original_data]
-		self.label_to_id = {key: i for i, (key, value) in enumerate(self.dialog_acts_counter.items())}
+		self.label_to_id = {label: i for i, label in enumerate(list(set(self.correct_labels)))}
 		self.id_to_label = {self.label_to_id[label]: label for label in self.label_to_id}
 		self.classes_counter = {self.label_to_id[label]: self.dialog_acts_counter[label] for label in self.dialog_acts_counter}
 		self.correct_classes = [self.label_to_id[label] for label in self.correct_labels]
@@ -121,6 +124,14 @@ def majority_classifier(data, dataset):
 	predictions = [majority_class for _ in range(len(dataset))]
 	# print_evaluation_metrics([s[0] for s in dataset], predictions, data.dialog_acts_counter, "Majority Classifier")
 	return predictions
+	# else:
+	# 	return [majority_class]
+	# 	# while True:
+	# 	# 	test_text = input("Please input a sentence: ")
+	# 	# 	print(f"we classify this sentence (\"{test_text}\") as: {majority_class}")
+	# 	# 	test_text = input("Enter 0 to exit, anything else to continue")
+	# 	# 	if str(test_text) == "0":
+	# 	# 		break
 
 
 def rule_based(data, dataset):
@@ -137,8 +148,24 @@ def rule_based(data, dataset):
 				p = prediction
 				break
 		predictions.append(p)
+	# print_evaluation_metrics([s[0] for s in dataset], predictions, data.dialog_acts_counter, "Rule-based Classifier")
 	return predictions
-
+	# else:
+	# 	while True:
+	# 		test_text = input("Please input a sentence: ")
+	# 		sentence = str(test_text)
+	# 		found = False
+	# 		for key, prediction in prediction_dict.items():
+	# 			if key in sentence:
+	# 				print(f"we classify this sentence as: {prediction}")
+	# 				found = True
+	# 				break
+	#
+	# 		if not found:
+	# 			print("We could not classify this sentence")
+	# 		test_text = input("Enter 0 to exit, anything else to continue")
+	# 		if str(test_text) == "0":
+	# 			break
 
 
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
@@ -146,37 +173,73 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
 
+	# !IMPORTANT! the model might be overfitting to the data, so we can discuss this
+	# It does get 86% accuracy on validation sets
+
 	clf.fit(data.vectorized_training_data, data.training_labels)  # We train our tree
+	# if not user_input:
 	# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 	# plt.show()
 	results = [r for r in clf.predict(dataset)]
+	# print_evaluation_metrics([data.id_to_label[i] for i in data.test_classes], results, data.dialog_acts_counter, "Decision Tree")
 	return results
+	# else:
+	# 	while True:
+	# 		test_text = input("Please input a sentence: ")
+	# 		sentence = data.vectorizer.transform([str(test_text)])
+	# 		results = clf.predict(sentence)
+	# 		print(f"The sentence (\"{test_text}\") is classified as: {data.id_to_label[results[0]]}")
+	# 		test_text = input("Enter 0 to exit, anything else to continue")
+	# 		if str(test_text) == "0":
+	# 			break
 
 
-def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
+def ff_nn(data, user_input):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
-	clf.fit(data.vectorized_training_data, data.training_labels)  # takes around a minute or so, depending on your pc
+	clf.fit(data.vectorized_training_data, data.training_classes)  # takes around a minute or so, depending on your pc
+	# if its taking too long on your pc, add this to the function parameters above: hidden_layer_sizes=(5, 2)
 
-	results = [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
-	return results
+	if not user_input:
+		results = [data.id_to_label[r] for r in clf.predict(data.vectorized_test_data)]  # Accuracy is 0.9866 on validation sets
+		print_evaluation_metrics(data.test_labels, results, data.dialog_acts_counter, "Feed-forward Neural Network")
+		return results
+	else:
+		while True:
+			test_text = input("Please input a sentence: ")
+			sentence = data.vectorizer.transform([str(test_text)])
+			print(f"The sentence (\"{test_text}\") is classified as: {clf.predict(sentence)}")
+			test_text = input("Enter 0 to exit, anything else to continue")
+			if str(test_text) == "0":
+				break
 
 
-def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
+def sto_gr_des(data, user_input):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
 	# penalty penalizes model complexity
-	clf.fit(data.vectorized_training_data, data.training_labels)
+	clf.fit(data.vectorized_training_data, data.training_classes)
 	# used the same set-up as decision trees & feed forward neural network
-	results = [r for r in clf.predict(dataset)]  # accuracy of ~97%
-	return results
+	if not user_input:
+		results = [data.id_to_label[r] for r in clf.predict(data.vectorized_test_data)]  # accuracy of ~97%
+		print_evaluation_metrics(data.test_labels, results, data.dialog_acts_counter, "Stochastic Gradient Descent")
+		return results
+	else:
+		while True:
+			test_text = input("Please input a sentence: ")
+			sentence = data.vectorizer.transform([str(test_text)])
+			print(f"The sentence is classified as: {clf.predict(sentence)}")
+			test_text = input("Enter 0 to exit, anything else to continue")
+			if str(test_text) == "0":
+				break
+
 
 def comparison_evaluation(data):
 	predictions = {
-		"majority": majority_classifier(data, data.test_corpus),
-		"rulebased": rule_based(data, data.test_corpus),
-		"decisiontree": decision_tree(data, data.vectorized_test_data),
-		"neuralnet": ff_nn(data, data.vectorized_test_data),
-		"sgradientdescent": sto_gr_des(data, data.vectorized_test_data)}
+		"majority": majority_classifier(data, False),
+		"rulebased": rule_based(data, False),
+		"decisiontree": decision_tree(data, False),
+		"neuralnet": ff_nn(data, False),
+		"sgradientdescent": sto_gr_des(data, False)}
 	labels = [lb for lb in data.dialog_acts_counter]
 	true_labels = [label for label in data.test_labels]
 	metrics = {
@@ -192,6 +255,7 @@ def comparison_evaluation(data):
 			for classifier in predictions:
 				binary_pred = [pl == label for pl in predictions[classifier]]
 				evaluations[metric][label][classifier] = metrics[metric](binary_true, binary_pred)
+	print(evaluations)
 	fig, axes = plt.subplots(len(evaluations), 1, sharex="all", sharey="all")
 	barwidth = 1 / (len(predictions) + 1)
 	numbered = [i for i in range(len(labels))]
@@ -203,12 +267,9 @@ def comparison_evaluation(data):
 		axes[i].set_xticks(numbered)
 		axes[i].set_xticklabels(labels)
 	axes[0].legend(loc=4)
-	plt.show()
-	fig.set_size_inches(18.5, 10.5)
-	fig.savefig('metric_plot', dpi=150)
 
 
-def interact(data, classifier, vectorize = True):
+def interact(data, classifier, vectorize):
 	while True:
 		test_text = input("Please input a sentence: ").lower()
 		if vectorize:
@@ -221,7 +282,7 @@ def interact(data, classifier, vectorize = True):
 			break
 
 
-def analyse_test(data, classifier, vectorize = True):
+def analyse_test(data, classifier, vectorize):
 	if vectorize:
 		predictions = classifier(data, data.vectorized_test_data)
 	else:
@@ -231,6 +292,8 @@ def analyse_test(data, classifier, vectorize = True):
 
 def main():
 	data_elements = DataElements("dialog_acts.dat")
+	print(data_elements.vectorized_training_data)
+	print(data_elements.training_labels)
 	while True:
 		print("Enter")
 		print("0 for exit")
@@ -250,32 +313,34 @@ def main():
 		if command == "0":
 			break
 		elif command == "1":
-			analyse_test(data_elements, majority_classifier, vectorize=False)
+			analyse_test(data_elements, majority_classifier, False)
 		elif command == "2":
-			analyse_test(data_elements, rule_based, vectorize=False)
+			analyse_test(data_elements, rule_based, False)
 		elif command == "3":
-			analyse_test(data_elements, decision_tree)
+			analyse_test(data_elements, decision_tree, True)
 		elif command == "4":
-			analyse_test(data_elements, ff_nn)
+			ff_nn(data_elements, False)
 		elif command == "5":
-			analyse_test(data_elements, sto_gr_des)
+			sto_gr_des(data_elements, False)
 		elif command == "1i":
-			interact(data_elements, majority_classifier, vectorize=False)
+			interact(data_elements, majority_classifier, False)
 		elif command == "2i":
-			interact(data_elements, rule_based, vectorize=False)
+			interact(data_elements, rule_based, False)
 		elif command == "3i":
-			interact(data_elements, decision_tree)
+			interact(data_elements, decision_tree, True)
 		elif command == "4i":
-			interact(data_elements, ff_nn)
+			ff_nn(data_elements, True)
 		elif command == "5i":
-			interact(data_elements, sto_gr_des)
+			sto_gr_des(data_elements, True)
 		elif command == "c":
 			comparison_evaluation(data_elements)
 			break  # break out of loop to execute the plot.
 		else:
 			break
 
+	# print("Total entries predicted as bye: "+str(counter_total)+", of those: "+str(correct_count)+ " are correct")
 	# https://uu.blackboard.com/webapps/assignment/uploadAssignment?content_id=_3578249_1&course_id=_128324_1&group_id=&mode=view
+	# Ill get the above into a state where you can input your own sentences and the above 2 systems classify them
 
 
 if __name__ == "__main__":
