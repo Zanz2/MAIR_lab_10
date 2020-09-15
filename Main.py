@@ -31,18 +31,19 @@ class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
 		self.original_data = self.__parse_data()
-		self.train_validate_length = int(len(self.original_data) * 0.85)  # Here is the number that will be in the Training split
-		self.train_length = int(self.train_validate_length * 0.85)
+		self.n_traindev = int(len(self.original_data) * 0.85)  # Here is the number that will be in the Training split
+		self.n_train = int(self.n_traindev * 0.85)
 
 		self.vectorizer = TfidfVectorizer()  # This will change our sentences into vectors of words, will calculate occurances and also normalize them
 		self.vectorizer.fit([sentence[1] for sentence in self.original_data])  # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
-		self.label_to_id = {label: i for i, label in enumerate(set(sentence[0] for sentence in self.original_data))}
-		self.id_to_label = {self.label_to_id[label]: label for label in self.label_to_id}
+		self.unique_labels = list(set(sentence[0] for sentence in self.original_data))
+		self.label_to_id = {label: i for i, label in enumerate(self.unique_labels)}
+		self.id_to_label = {i: label for i, label in enumerate(self.unique_labels)}
 
 		self.fullset = Dataset(self.original_data, self.label_to_id, self.vectorizer)
-		self.trainset = Dataset(self.original_data[:self.train_length], self.label_to_id, self.vectorizer)
-		self.validateset = Dataset(self.original_data[self.train_length:self.train_validate_length], self.label_to_id, self.vectorizer)
-		self.testset = Dataset(self.original_data[self.train_validate_length:], self.label_to_id, self.vectorizer)
+		self.trainset = Dataset(self.original_data[:self.n_train], self.label_to_id, self.vectorizer)
+		self.devset = Dataset(self.original_data[self.n_train:self.n_traindev], self.label_to_id, self.vectorizer)
+		self.testset = Dataset(self.original_data[self.n_traindev:], self.label_to_id, self.vectorizer)
 
 	def __parse_data(self):
 		original_data = []
@@ -81,12 +82,16 @@ def count_prediction_accuracies(true_labels, predicted_labels):
 
 def calculate_precision(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
-	return 1. if counts["true_pos"] + counts["false_pos"] == 0 else counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
+	if counts["true_pos"] == 0 and counts["false_pos"] == 0:
+		return 1.
+	return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
 
 
 def calculate_recall(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
-	return 1. if counts["true_pos"] + counts["false_neg"] == 0 else counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
+	if counts["true_pos"] == 0 and counts["false_neg"] == 0:
+		return 1.
+	return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
 
 
 def calculate_f1score(true_labels, predicted_labels):
@@ -95,6 +100,19 @@ def calculate_f1score(true_labels, predicted_labels):
 	if precision == 0 and recall == 0:
 		return 0.
 	return 2 * precision * recall / (precision + recall)
+
+
+def calculate_evaluationmetric(metric, true_labels, predicted_labels):
+	if metric == "precision":
+		return calculate_precision(true_labels, predicted_labels)
+	elif metric == "recall":
+		return calculate_recall(true_labels, predicted_labels)
+	elif metric == "f1score":
+		return calculate_f1score(true_labels, predicted_labels)
+	elif metric == "accuracy":
+		return calculate_accuracy(true_labels, predicted_labels)
+	else:
+		raise NotImplementedError()
 
 
 def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False):
@@ -164,17 +182,14 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 
 def comparison_evaluation(data):
 	predictions = {
-		"majority": majority_classifier(data, data.validateset.sentences),
-		"rulebased": rule_based(data, data.validateset.sentences),
-		"decisiontree": decision_tree(data, data.validateset.vectorized),
-		"neuralnet": ff_nn(data, data.validateset.vectorized),
-		"sgradientdescent": sto_gr_des(data, data.validateset.vectorized)}
+		"majority": majority_classifier(data, data.devset.sentences),
+		"rulebased": rule_based(data, data.devset.sentences),
+		"decisiontree": decision_tree(data, data.devset.vectorized),
+		"neuralnet": ff_nn(data, data.devset.vectorized),
+		"sgradientdescent": sto_gr_des(data, data.devset.vectorized)}
 	labels = [lb for lb in data.label_to_id]
-	true_labels = [label for label in data.validateset.labels]
-	metrics = {
-		"precision": calculate_precision,
-		"recall": calculate_recall,
-		"f1score": calculate_f1score}
+	true_labels = [label for label in data.devset.labels]
+	metrics = ["precision", "recall", "f1score"]
 	evaluations = {}
 	for metric in metrics:
 		evaluations[metric] = {}
@@ -183,7 +198,7 @@ def comparison_evaluation(data):
 			evaluations[metric][label] = {}
 			for classifier in predictions:
 				binary_pred = [pl == label for pl in predictions[classifier]]
-				evaluations[metric][label][classifier] = metrics[metric](binary_true, binary_pred)
+				evaluations[metric][label][classifier] = calculate_evaluationmetric(metric, binary_true, binary_pred)
 	fig, axes = plt.subplots(len(evaluations), 1, sharex="all", sharey="all")
 	barwidth = 1 / (len(predictions) + 1)
 	numbered = [i for i in range(len(labels))]
@@ -191,7 +206,9 @@ def comparison_evaluation(data):
 		axes[i].set_title(metric)
 		for j, classifier in enumerate(predictions):
 			x_offset = -0.5 * len(predictions) * barwidth + j * barwidth
-			axes[i].bar([n + x_offset for n in numbered], [evaluations[metric][lb][classifier] for lb in labels], barwidth, label=classifier)
+			x_values = [n + x_offset for n in numbered]
+			y_values = [evaluations[metric][lb][classifier] for lb in labels]
+			axes[i].bar(x_values, y_values, barwidth, label=classifier)
 		axes[i].set_xticks(numbered)
 		axes[i].set_xticklabels(labels)
 	axes[0].legend(loc=4)
@@ -215,10 +232,10 @@ def interact(data, classifier, vectorize=True):
 
 def analyse_validation(data, classifier, vectorize=True):
 	if vectorize:
-		predictions = classifier(data, data.validateset.vectorized)
+		predictions = classifier(data, data.devset.vectorized)
 	else:
-		predictions = classifier(data, data.validateset.sentences)
-	print_evaluation_metrics(data.validateset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
+		predictions = classifier(data, data.devset.sentences)
+	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
 
 
 def main():
