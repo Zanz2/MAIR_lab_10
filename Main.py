@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 
+
 class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
@@ -116,19 +117,14 @@ def print_evaluation_metrics(true_labels, predicted_labels, dialog_acts_counter,
 
 def majority_classifier(data, dataset):
 	majority_class = max(data.dialog_acts_counter.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
-	# if not user_input:
-	# dataset = data.original_data[data.training_part_length:]
 	predictions = [majority_class for _ in range(len(dataset))]
-	# print_evaluation_metrics([s[0] for s in dataset], predictions, data.dialog_acts_counter, "Majority Classifier")
 	return predictions
 
 
-def rule_based(data, dataset):
+def rule_based(_, dataset):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	# (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
 	prediction_dict = {"bye": "bye", "goodbye": "bye", "thank you": "thankyou", "how about": "reqalts", "is there": "reqalts", "what": "request", "is it": "confirm", "i": "inform", "no": "negate", "yes": "affirm", "hello": "hello", "im": "inform"}
-	# if not user_input:
-	# dataset = data.original_data[data.training_part_length:]
 	predictions = []
 	for sentence in dataset:
 		p = ""
@@ -144,20 +140,16 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-
 	clf.fit(data.vectorized_training_data, data.training_labels)  # We train our tree
 	# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 	# plt.show()
-	results = [r for r in clf.predict(dataset)]
-	return results
+	return [r for r in clf.predict(dataset)]
 
 
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False, hidden_layer_sizes=(5, 2))  # will stop early if small validation subset isnt improving while training
 	clf.fit(data.vectorized_training_data, data.training_labels)  # takes around a minute or so, depending on your pc
-
-	results = [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
-	return results
+	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
 
 def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
@@ -166,8 +158,8 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	# penalty penalizes model complexity
 	clf.fit(data.vectorized_training_data, data.training_labels)
 	# used the same set-up as decision trees & feed forward neural network
-	results = [r for r in clf.predict(dataset)]  # accuracy of ~97%
-	return results
+	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
+
 
 def comparison_evaluation(data):
 	predictions = {
@@ -207,9 +199,9 @@ def comparison_evaluation(data):
 	fig.savefig('metric_plot', dpi=150)
 
 
-def interact(data, classifier, vectorize = True):
+def interact(data, classifier, vectorize=True):
 	while True:
-		test_text = input("Please input a sentence: ").lower()
+		test_text = input(f"Please input a sentence (to be classified by {classifier.__name__}): ").lower()
 		if vectorize:
 			predicted_label = classifier(data, data.vectorizer.transform([test_text]))
 		else:
@@ -220,7 +212,7 @@ def interact(data, classifier, vectorize = True):
 			break
 
 
-def analyse_test(data, classifier, vectorize = True):
+def analyse_test(data, classifier, vectorize=True):
 	if vectorize:
 		predictions = classifier(data, data.vectorized_test_data)
 	else:
@@ -273,7 +265,6 @@ def main():
 			break  # break out of loop to execute the plot.
 		else:
 			break
-
 	# https://uu.blackboard.com/webapps/assignment/uploadAssignment?content_id=_3578249_1&course_id=_128324_1&group_id=&mode=view
 
 
