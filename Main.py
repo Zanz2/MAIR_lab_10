@@ -92,6 +92,8 @@ def calculate_recall(true_labels, predicted_labels):
 def calculate_f1score(true_labels, predicted_labels):
 	precision = calculate_precision(true_labels, predicted_labels)
 	recall = calculate_recall(true_labels, predicted_labels)
+	if precision == 0 and recall == 0:
+		return 0.
 	return 2 * precision * recall / (precision + recall)
 
 
