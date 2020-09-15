@@ -11,31 +11,36 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 
 
+class Dataset:
+	def __init__(self, full_data, label_to_id, vectorizer):
+		self.full_data = full_data
+		self.sentences = [line[1] for line in self.full_data]
+		self.vectorized = vectorizer.transform(self.sentences)
+		self.labels = [line[0] for line in self.full_data]
+		self.ids = [label_to_id[label] for label in self.labels]
+		self.occurrences = self.__count_occurrences(label_to_id)
+
+	def __count_occurrences(self, label_to_id):
+		occurrences = {label: 0 for label in label_to_id}
+		for label in self.labels:
+			occurrences[label] += 1
+		return occurrences
+
+
 class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
 		self.original_data = self.__parse_data()
 		self.training_part_length = int(len(self.original_data) * 0.85)  # Here is the number that will be in the Training split
-		self.dialog_acts_counter = self.__count_occurrences()
-		self.corpus = [sentence[1] for sentence in self.original_data]
-		self.correct_labels = [sentence[0] for sentence in self.original_data]
-		self.label_to_id = {key: i for i, (key, value) in enumerate(self.dialog_acts_counter.items())}
-		self.id_to_label = {self.label_to_id[label]: label for label in self.label_to_id}
-		self.classes_counter = {self.label_to_id[label]: self.dialog_acts_counter[label] for label in self.dialog_acts_counter}
-		self.correct_classes = [self.label_to_id[label] for label in self.correct_labels]
-
-		self.training_corpus = self.corpus[:self.training_part_length]
-		self.training_classes = self.correct_classes[:self.training_part_length]  # Classes are just ids, the id represents a class label from the mapping
-		self.training_labels = self.correct_labels[:self.training_part_length]
-
-		self.test_corpus = self.corpus[self.training_part_length:]
-		self.test_classes = self.correct_classes[self.training_part_length:]
-		self.test_labels = self.correct_labels[self.training_part_length:]
 
 		self.vectorizer = TfidfVectorizer()  # This will change our sentences into vectors of words, will calculate occurances and also normalize them
-		self.vectorizer.fit(self.corpus)  # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
-		self.vectorized_training_data = self.vectorizer.transform(self.training_corpus)  # transforms the models so they use that matrix as a representation
-		self.vectorized_test_data = self.vectorizer.transform(self.test_corpus)
+		self.vectorizer.fit([sentence[1] for sentence in self.original_data])  # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
+		self.label_to_id = {label: i for i, label in enumerate(set(sentence[0] for sentence in self.original_data))}
+		self.id_to_label = {self.label_to_id[label]: label for label in self.label_to_id}
+
+		self.fullset = Dataset(self.original_data, self.label_to_id, self.vectorizer)
+		self.trainset = Dataset(self.original_data[:self.training_part_length], self.label_to_id, self.vectorizer)
+		self.testset = Dataset(self.original_data[self.training_part_length:], self.label_to_id, self.vectorizer)
 
 	def __parse_data(self):
 		original_data = []
@@ -46,14 +51,6 @@ class DataElements:
 				line = line.split(" ", 1)  # this just seperates te first dialog_act from the remaining sentence
 				original_data.append(line)
 		return original_data
-
-	def __count_occurrences(self):
-		dialog_acts_counter = {}
-		for element in self.original_data[:self.training_part_length]:  # Here I find all the unique dialogue act categories, and count how many occurences there are for each category
-			if element[0] not in dialog_acts_counter:
-				dialog_acts_counter[element[0]] = 0
-			dialog_acts_counter[element[0]] += 1
-		return dialog_acts_counter
 
 
 def calculate_accuracy(true_labels, predicted_labels):
@@ -96,27 +93,27 @@ def calculate_f1score(true_labels, predicted_labels):
 	return 2 * precision * recall / (precision + recall)
 
 
-def calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=False):
+def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	f1scores = {}
-	for label in dialog_acts_counter:
+	for label in occurrences:
 		f1scores[label] = calculate_f1score([tl == label for tl in true_labels], [pl == label for pl in predicted_labels])
 	if weighted:
-		return sum(f1scores[label] * dialog_acts_counter[label] for label in dialog_acts_counter) / sum(dialog_acts_counter.values())
+		return sum(f1scores[label] * occurrences[label] for label in occurrences) / sum(occurrences.values())
 	else:
 		return sum(f1scores.values()) / len(f1scores)
 
 
-def print_evaluation_metrics(true_labels, predicted_labels, dialog_acts_counter, name):
+def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
 	print(f"{name} evaluation metrics")
 	print(f"    Prediction Accuracy: {calculate_accuracy(true_labels, predicted_labels)}")
-	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=False)}")
-	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, dialog_acts_counter, weighted=True)}")
+	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)}")
+	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)}")
 
 
 def majority_classifier(data, dataset):
-	majority_class = max(data.dialog_acts_counter.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
+	majority_class = max(data.trainset.occurrences.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	predictions = [majority_class for _ in range(len(dataset))]
 	return predictions
 
@@ -140,7 +137,7 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-	clf.fit(data.vectorized_training_data, data.training_labels)  # We train our tree
+	clf.fit(data.trainset.vectorized, data.trainset.labels)  # We train our tree
 	# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 	# plt.show()
 	return [r for r in clf.predict(dataset)]
@@ -148,7 +145,7 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False, hidden_layer_sizes=(5, 2))  # will stop early if small validation subset isnt improving while training
-	clf.fit(data.vectorized_training_data, data.training_labels)  # takes around a minute or so, depending on your pc
+	clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
 	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
 
@@ -156,20 +153,20 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
 	# penalty penalizes model complexity
-	clf.fit(data.vectorized_training_data, data.training_labels)
+	clf.fit(data.trainset.vectorized, data.trainset.labels)
 	# used the same set-up as decision trees & feed forward neural network
 	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
 
 
 def comparison_evaluation(data):
 	predictions = {
-		"majority": majority_classifier(data, data.test_corpus),
-		"rulebased": rule_based(data, data.test_corpus),
-		"decisiontree": decision_tree(data, data.vectorized_test_data),
-		"neuralnet": ff_nn(data, data.vectorized_test_data),
-		"sgradientdescent": sto_gr_des(data, data.vectorized_test_data)}
-	labels = [lb for lb in data.dialog_acts_counter]
-	true_labels = [label for label in data.test_labels]
+		"majority": majority_classifier(data, data.testset.sentences),
+		"rulebased": rule_based(data, data.testset.sentences),
+		"decisiontree": decision_tree(data, data.testset.vectorized),
+		"neuralnet": ff_nn(data, data.testset.vectorized),
+		"sgradientdescent": sto_gr_des(data, data.testset.vectorized)}
+	labels = [lb for lb in data.label_to_id]
+	true_labels = [label for label in data.testset.labels]
 	metrics = {
 		"precision": lambda t, p: calculate_precision(t, p),
 		"recall": lambda t, p: calculate_recall(t, p),
@@ -214,10 +211,10 @@ def interact(data, classifier, vectorize=True):
 
 def analyse_test(data, classifier, vectorize=True):
 	if vectorize:
-		predictions = classifier(data, data.vectorized_test_data)
+		predictions = classifier(data, data.testset.vectorized)
 	else:
-		predictions = classifier(data, data.test_corpus)
-	print_evaluation_metrics(data.test_labels, predictions, data.dialog_acts_counter, str(classifier.__name__))
+		predictions = classifier(data, data.testset.sentences)
+	print_evaluation_metrics(data.testset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
 
 
 def main():
