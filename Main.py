@@ -144,7 +144,7 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 
 
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False, hidden_layer_sizes=(5, 2))  # will stop early if small validation subset isnt improving while training
+	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
 	clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
 	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
