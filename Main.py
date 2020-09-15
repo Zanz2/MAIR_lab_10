@@ -168,9 +168,9 @@ def comparison_evaluation(data):
 	labels = [lb for lb in data.label_to_id]
 	true_labels = [label for label in data.testset.labels]
 	metrics = {
-		"precision": lambda t, p: calculate_precision(t, p),
-		"recall": lambda t, p: calculate_recall(t, p),
-		"f1score": lambda t, p: calculate_f1score(t, p)}
+		"precision": calculate_precision,
+		"recall": calculate_recall,
+		"f1score": calculate_f1score}
 	evaluations = {}
 	for metric in metrics:
 		evaluations[metric] = {}
