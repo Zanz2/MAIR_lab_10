@@ -31,7 +31,8 @@ class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
 		self.original_data = self.__parse_data()
-		self.training_part_length = int(len(self.original_data) * 0.85)  # Here is the number that will be in the Training split
+		self.train_validate_length = int(len(self.original_data) * 0.85)  # Here is the number that will be in the Training split
+		self.train_length = int(self.train_validate_length * 0.85)
 
 		self.vectorizer = TfidfVectorizer()  # This will change our sentences into vectors of words, will calculate occurances and also normalize them
 		self.vectorizer.fit([sentence[1] for sentence in self.original_data])  # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
@@ -39,8 +40,9 @@ class DataElements:
 		self.id_to_label = {self.label_to_id[label]: label for label in self.label_to_id}
 
 		self.fullset = Dataset(self.original_data, self.label_to_id, self.vectorizer)
-		self.trainset = Dataset(self.original_data[:self.training_part_length], self.label_to_id, self.vectorizer)
-		self.testset = Dataset(self.original_data[self.training_part_length:], self.label_to_id, self.vectorizer)
+		self.trainset = Dataset(self.original_data[:self.train_length], self.label_to_id, self.vectorizer)
+		self.validateset = Dataset(self.original_data[self.train_length:self.train_validate_length], self.label_to_id, self.vectorizer)
+		self.testset = Dataset(self.original_data[self.train_validate_length:], self.label_to_id, self.vectorizer)
 
 	def __parse_data(self):
 		original_data = []
@@ -160,13 +162,13 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 
 def comparison_evaluation(data):
 	predictions = {
-		"majority": majority_classifier(data, data.testset.sentences),
-		"rulebased": rule_based(data, data.testset.sentences),
-		"decisiontree": decision_tree(data, data.testset.vectorized),
-		"neuralnet": ff_nn(data, data.testset.vectorized),
-		"sgradientdescent": sto_gr_des(data, data.testset.vectorized)}
+		"majority": majority_classifier(data, data.validateset.sentences),
+		"rulebased": rule_based(data, data.validateset.sentences),
+		"decisiontree": decision_tree(data, data.validateset.vectorized),
+		"neuralnet": ff_nn(data, data.validateset.vectorized),
+		"sgradientdescent": sto_gr_des(data, data.validateset.vectorized)}
 	labels = [lb for lb in data.label_to_id]
-	true_labels = [label for label in data.testset.labels]
+	true_labels = [label for label in data.validateset.labels]
 	metrics = {
 		"precision": calculate_precision,
 		"recall": calculate_recall,
@@ -209,12 +211,12 @@ def interact(data, classifier, vectorize=True):
 			break
 
 
-def analyse_test(data, classifier, vectorize=True):
+def analyse_validation(data, classifier, vectorize=True):
 	if vectorize:
-		predictions = classifier(data, data.testset.vectorized)
+		predictions = classifier(data, data.validateset.vectorized)
 	else:
-		predictions = classifier(data, data.testset.sentences)
-	print_evaluation_metrics(data.testset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
+		predictions = classifier(data, data.validateset.sentences)
+	print_evaluation_metrics(data.validateset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
 
 
 def main():
@@ -238,15 +240,15 @@ def main():
 		if command == "0":
 			break
 		elif command == "1":
-			analyse_test(data_elements, majority_classifier, vectorize=False)
+			analyse_validation(data_elements, majority_classifier, vectorize=False)
 		elif command == "2":
-			analyse_test(data_elements, rule_based, vectorize=False)
+			analyse_validation(data_elements, rule_based, vectorize=False)
 		elif command == "3":
-			analyse_test(data_elements, decision_tree)
+			analyse_validation(data_elements, decision_tree)
 		elif command == "4":
-			analyse_test(data_elements, ff_nn)
+			analyse_validation(data_elements, ff_nn)
 		elif command == "5":
-			analyse_test(data_elements, sto_gr_des)
+			analyse_validation(data_elements, sto_gr_des)
 		elif command == "1i":
 			interact(data_elements, majority_classifier, vectorize=False)
 		elif command == "2i":
