@@ -254,16 +254,64 @@ def predict_sentence(data, supplied_text, classifier, vectorize=True):
 	if vectorize:
 		predicted_label = classifier(data, data.vectorizer.transform([supplied_text]))
 	else:
-		predicted_label = classifier(data, [test_text])
+		predicted_label = classifier(data, [supplied_text])
+	if predicted_label == ["null"]:
+		# if it cannot classify, use the same sentence again but try to predict it with rule based classifier (edge cases)
+		predicted_label = predict_sentence(data, supplied_text, rule_based, vectorize=False)
 	return predicted_label
 
 
-class StateTransition: #has state transition functions
-	def state1(self):
-		print("Hi, welcome to the group 10 dialogue system.")
-		print("You can ask for restaurants by area , price range or food type . How may I help you?")
-		user_text = input().lower()
-		print(user_text)
+def dialogue(data, dialogue_state, user_utterance = False):
+	while True:
+		dialogue_state.current_message()
+		user_text = input()
+		predicted_label = predict_sentence(data, user_text, sto_gr_des)[0]
+		# returns an array of one, so we select first entry
+		if predicted_label == "inform":
+			dialogue_state.handle_inform(user_text)
+			break
+		elif predicted_label == "todo":
+			even_more_switch_statements = True
+			break
+		else:
+			break
+	return dialogue_state
+
+class State():
+	HELLO = 0
+	ASK = 1
+	ASK_PREF_1 = 2
+	ASK_PREF_2 = 3
+	ASK_PREF_3 = 4
+	VALID = 5
+	SUGGEST = 6
+
+class DialogueState: #has dialogue state
+	def __init__(self):
+		self.current_state = State.HELLO
+		self.state_progression_array = [
+			State.HELLO,
+			State.ASK,
+			State.ASK_PREF_1,
+			State.ASK_PREF_2,
+			State.ASK_PREF_3,
+			State.VALID,
+			State.SUGGEST
+		]
+		self.user_utterances_array = []
+
+	def current_message(self):
+		if self.current_state == State.HELLO:
+			print("Hi, welcome to the group 10 dialogue system.")
+			print("You can ask for restaurants by area , price range or fdood type . How may I help you?")
+		elif self.current_state == State.ASK_PREF_1:
+			even_more_switch_statements = True
+		else:
+			end_of_switch = True
+
+	def handle_inform(self, text): # has to modify itself according to the sentence contents
+		todo = True
+		print("i handled your inform")
 
 # Used to speed up fitting on models where it takes longer (like ff_nn)
 cached_models = { "ff_nn": False }
@@ -273,7 +321,6 @@ def main():
 	while True:
 		print("Enter")
 		print("0 for exit")
-		print("s to train and use cached neural network classifier (only teach neural network once)")
 		print("1 for Majority classifier on test data")
 		print("2 for manual prediction on test data")
 		print("3 for Decision tree on test data")
@@ -285,14 +332,12 @@ def main():
 		print("4i for Feed forward neural network on user input")
 		print("5i for Stochastic gradient descent on user input")
 		print("c for Comparison Evaluation")
+		print("s to train and use cached neural network classifier (only teach neural network once)")
+		print("d to talk to with our recommender chatbot")
 		test_text = input()
 		command = str(test_text)
 		if command == "0":
 			break
-		elif command == "s":
-			cached_clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)
-			cached_clf.fit(data_elements.trainset.vectorized, data_elements.trainset.labels)
-			cached_models["ff_nn"] = cached_clf
 		elif command == "1":
 			analyse_validation(data_elements, majority_classifier, vectorize=False)
 		elif command == "2":
@@ -316,6 +361,13 @@ def main():
 		elif command == "c":
 			comparison_evaluation(data_elements)
 			break  # break out of loop to execute the plot.
+		elif command == "s":
+			cached_clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)
+			cached_clf.fit(data_elements.trainset.vectorized, data_elements.trainset.labels)
+			cached_models["ff_nn"] = cached_clf
+		elif command == "d":
+			dialogue_state = DialogueState()
+			dialogue(data_elements, dialogue_state)
 		else:
 			break
 			
