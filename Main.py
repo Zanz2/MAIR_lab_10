@@ -146,7 +146,30 @@ def majority_classifier(data, dataset):
 def rule_based(_, dataset):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	# (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
-	prediction_dict = {"bye": "bye", "goodbye": "bye", "thank": "thankyou", "how about": "reqalts", "is there": "reqalts", "what": "request", "is it": "confirm", "i": "inform", "no": "negate", "yes": "affirm", "hello": "hello", "im": "inform", "any" : "inform", "phone" : "request", "address" : "request", "post" : "request", "food" : "inform", "west" : "inform", "east" : "inform", "centre": "inform", "north": "inform", "south" : "inform"}
+	prediction_dict = {
+		"bye": "bye",
+		"goodbye": "bye",
+		"thank": "thankyou",
+		"how about": "reqalts",
+		"is there": "reqalts",
+		"what": "request",
+		"is it": "confirm",
+		"i": "inform",
+		"no": "negate",
+		"yes": "affirm",
+		"hello": "hello",
+		"im": "inform",
+		"any" : "inform",
+		"phone" : "request",
+		"address" : "request",
+		"post" : "request",
+		"food" : "inform",
+		"west" : "inform",
+		"east" : "inform",
+		"centre": "inform",
+		"north": "inform",
+		"south" : "inform"
+	}
 	predictions = []
 	for sentence in dataset:
 		p = ""
@@ -261,20 +284,19 @@ def predict_sentence(data, supplied_text, classifier, vectorize=True):
 	return predicted_label
 
 
-def dialogue(data, dialogue_state, user_utterance = False):
+def dialogue(data, dialogue_state, user_utterance):
 	while True:
-		dialogue_state.current_message()
-		user_text = input()
-		predicted_label = predict_sentence(data, user_text, sto_gr_des)[0]
+		predicted_label = predict_sentence(data, user_utterance, sto_gr_des)[0]
 		# returns an array of one, so we select first entry
 		if predicted_label == "inform":
-			dialogue_state.handle_inform(user_text)
+			dialogue_state.handle_inform(user_utterance)
 			break
 		elif predicted_label == "todo":
 			even_more_switch_statements = True
 			break
 		else:
 			break
+	dialogue_state.current_message()
 	return dialogue_state
 
 class State():
@@ -304,14 +326,14 @@ class DialogueState: #has dialogue state
 		if self.current_state == State.HELLO:
 			print("Hi, welcome to the group 10 dialogue system.")
 			print("You can ask for restaurants by area , price range or fdood type . How may I help you?")
-		elif self.current_state == State.ASK_PREF_1:
-			even_more_switch_statements = True
+		elif self.current_state == State.ASK:
+			print("I handled your inform")
 		else:
 			end_of_switch = True
 
-	def handle_inform(self, text): # has to modify itself according to the sentence contents
+	def handle_inform(self, user_utterance): # has to modify itself according to the sentence contents
+		self.current_state = State.ASK
 		todo = True
-		print("i handled your inform")
 
 # Used to speed up fitting on models where it takes longer (like ff_nn)
 cached_models = { "ff_nn": False }
@@ -367,7 +389,9 @@ def main():
 			cached_models["ff_nn"] = cached_clf
 		elif command == "d":
 			dialogue_state = DialogueState()
-			dialogue(data_elements, dialogue_state)
+			dialogue_state.current_message()
+			user_text = input()
+			dialogue(data_elements, dialogue_state, user_text)
 		else:
 			break
 			
