@@ -171,8 +171,11 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 # we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
 # we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
-	clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
+	if cached_models["ff_nn"]:
+		clf = cached_models["ff_nn"]
+	else:
+		clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+		clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
 	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
 # stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
@@ -236,7 +239,8 @@ def interact(data, classifier, vectorize=True):
 		if str(test_text) == "0":
 			break
 
-# COMMENT NOT READY, WHAT DOES THIS DO?
+# The function below calls different models with the supplied training and test data, it predicts the classes of sentances
+# in the supplied dataset
 def analyse_validation(data, classifier, vectorize=True):
 	if vectorize:
 		predictions = classifier(data, data.devset.vectorized)
@@ -244,12 +248,32 @@ def analyse_validation(data, classifier, vectorize=True):
 		predictions = classifier(data, data.devset.sentences)
 	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
 
+# Takes a sentance as an argument, returns its predicted label as result, (no direct user input, used for classes)
+def predict_sentence(data, supplied_text, classifier, vectorize=True):
+	supplied_text = supplied_text.lower()
+	if vectorize:
+		predicted_label = classifier(data, data.vectorizer.transform([supplied_text]))
+	else:
+		predicted_label = classifier(data, [test_text])
+	return predicted_label
+
+
+class StateTransition: #has state transition functions
+	def state1(self):
+		print("Hi, welcome to the group 10 dialogue system.")
+		print("You can ask for restaurants by area , price range or food type . How may I help you?")
+		user_text = input().lower()
+		print(user_text)
+
+# Used to speed up fitting on models where it takes longer (like ff_nn)
+cached_models = { "ff_nn": False }
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
 	data_elements = DataElements("dialog_acts.dat")
 	while True:
 		print("Enter")
 		print("0 for exit")
+		print("s to train and use cached neural network classifier (only teach neural network once)")
 		print("1 for Majority classifier on test data")
 		print("2 for manual prediction on test data")
 		print("3 for Decision tree on test data")
@@ -265,6 +289,10 @@ def main():
 		command = str(test_text)
 		if command == "0":
 			break
+		elif command == "s":
+			cached_clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)
+			cached_clf.fit(data_elements.trainset.vectorized, data_elements.trainset.labels)
+			cached_models["ff_nn"] = cached_clf
 		elif command == "1":
 			analyse_validation(data_elements, majority_classifier, vectorize=False)
 		elif command == "2":
