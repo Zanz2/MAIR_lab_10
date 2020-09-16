@@ -104,7 +104,7 @@ def calculate_f1score(true_labels, predicted_labels):
 		return 0.
 	return 2 * precision * recall / (precision + recall)
 
-
+# a function to call upon the previously defined metric functions, for ease of use and consistency
 def calculate_evaluationmetric(metric, true_labels, predicted_labels):
 	if metric == "precision":
 		return calculate_precision(true_labels, predicted_labels)
@@ -117,7 +117,7 @@ def calculate_evaluationmetric(metric, true_labels, predicted_labels):
 	else:
 		raise NotImplementedError()
 
-
+# a function which calculates the f1score for all labels together
 def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
@@ -129,20 +129,20 @@ def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weig
 	else:
 		return sum(f1scores.values()) / len(f1scores)
 
-
+# show the user the outcome of the metrics 
 def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
 	print(f"{name} evaluation metrics")
 	print(f"    Prediction Accuracy: {calculate_accuracy(true_labels, predicted_labels)}")
 	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)}")
 	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)}")
 
-
+# we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
 def majority_classifier(data, dataset):
 	majority_class = max(data.trainset.occurrences.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	predictions = [majority_class for _ in range(len(dataset))]
 	return predictions
 
-
+# we define a rule based classifier, in which we connect utterances to labels, such as 'how about' to the 'reqalts' label
 def rule_based(_, dataset):
 	# This is a dictionary with values as the dialogue act and keys as the text to be looked for
 	# (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
@@ -157,9 +157,10 @@ def rule_based(_, dataset):
 		predictions.append(p)
 	return predictions
 
-
+# we define a decision tree, through the scikit predefined functions, learns simple decision rules inferred from data features
+# we set the mas depth at 30 to avoid overfitting.
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
-	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  # the max depth can be set imperically, but if we set it too big there will be overfitting
+	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
 	clf.fit(data.trainset.vectorized, data.trainset.labels)  # We train our tree
@@ -167,13 +168,14 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	# plt.show()
 	return [r for r in clf.predict(dataset)]
 
-
+# we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
+# we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
 	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
 	clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
 	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
-
+# stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
 def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
@@ -182,7 +184,8 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	# used the same set-up as decision trees & feed forward neural network
 	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
 
-
+# we define a dictionary in which we save the metrics of our models
+# once stored, we plot a graph to visualise performance across models 
 def comparison_evaluation(data):
 	predictions = {
 		"majority": majority_classifier(data, data.devset.sentences),
