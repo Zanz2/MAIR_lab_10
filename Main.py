@@ -184,7 +184,7 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	# used the same set-up as decision trees & feed forward neural network
 	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
 
-# we define a dictionary in which we save the metrics of our models
+# we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
 # once stored, we plot a graph to visualise performance across models 
 def comparison_evaluation(data):
 	predictions = {
@@ -222,7 +222,8 @@ def comparison_evaluation(data):
 	fig.set_size_inches(18.5, 10.5)
 	fig.savefig('metric_plot', dpi=150)
 
-
+# we define a function allowing the user to interact with our models
+# this will process user input according to the defined classifier
 def interact(data, classifier, vectorize=True):
 	while True:
 		test_text = input(f"Please input a sentence (to be classified by {classifier.__name__}): ").lower()
@@ -235,7 +236,7 @@ def interact(data, classifier, vectorize=True):
 		if str(test_text) == "0":
 			break
 
-
+# COMMENT NOT READY, WHAT DOES THIS DO?
 def analyse_validation(data, classifier, vectorize=True):
 	if vectorize:
 		predictions = classifier(data, data.devset.vectorized)
@@ -243,7 +244,7 @@ def analyse_validation(data, classifier, vectorize=True):
 		predictions = classifier(data, data.devset.sentences)
 	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
 
-
+# load dialog_acts, show options of interaction and display to user, process user request
 def main():
 	data_elements = DataElements("dialog_acts.dat")
 	while True:
@@ -289,8 +290,7 @@ def main():
 			break  # break out of loop to execute the plot.
 		else:
 			break
-	# https://uu.blackboard.com/webapps/assignment/uploadAssignment?content_id=_3578249_1&course_id=_128324_1&group_id=&mode=view
-
+			
 
 if __name__ == "__main__":
 	main()
