@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 
+
 # preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
 # then count the amount of times each label occurs
 class Dataset:
@@ -26,6 +27,7 @@ class Dataset:
 		for label in self.labels:
 			occurrences[label] += 1
 		return occurrences
+
 
 # split data into training set, test set, full set, developing set
 # then parse the data and adjust it by removing newline characters and convert upper- to lowercase letters
@@ -57,11 +59,13 @@ class DataElements:
 				original_data.append(line)
 		return original_data
 
+
 # we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
 def calculate_accuracy(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
+
 
 # we count the amount of true positives (the label is assigned and correct), true negatives (the label is rightfully not assigned), false negatives
 # (the label is not assigned when it should have been) and false positives (the label is assigned when it should not have been)
@@ -82,12 +86,14 @@ def count_prediction_accuracies(true_labels, predicted_labels):
 				true_neg += 1
 	return {"true_pos": true_pos, "true_neg": true_neg, "false_pos": false_pos, "false_neg": false_neg}
 
+
 # we define a function to calculate precision, this is done by dividing the true positives by the total amount of positives (the percentage of correctly assigned positives)
 def calculate_precision(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_pos"] == 0:
 		return 1.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
+
 
 # we define a function to calculate recall, which is done by dividing the true positives by the total amount of correct predictions
 def calculate_recall(true_labels, predicted_labels):
@@ -96,6 +102,7 @@ def calculate_recall(true_labels, predicted_labels):
 		return 1.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
 
+
 # function to calculate f1-score, which is a generalised version of precision and recall
 def calculate_f1score(true_labels, predicted_labels):
 	precision = calculate_precision(true_labels, predicted_labels)
@@ -103,6 +110,7 @@ def calculate_f1score(true_labels, predicted_labels):
 	if precision == 0 and recall == 0:
 		return 0.
 	return 2 * precision * recall / (precision + recall)
+
 
 # a function to call upon the previously defined metric functions, for ease of use and consistency
 def calculate_evaluationmetric(metric, true_labels, predicted_labels):
@@ -117,6 +125,7 @@ def calculate_evaluationmetric(metric, true_labels, predicted_labels):
 	else:
 		raise NotImplementedError()
 
+
 # a function which calculates the f1score for all labels together
 def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False):
 	length = len(true_labels)
@@ -129,6 +138,7 @@ def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weig
 	else:
 		return sum(f1scores.values()) / len(f1scores)
 
+
 # show the user the outcome of the metrics 
 def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
 	print(f"{name} evaluation metrics")
@@ -136,11 +146,13 @@ def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
 	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)}")
 	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)}")
 
+
 # we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
 def majority_classifier(data, dataset):
 	majority_class = max(data.trainset.occurrences.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	predictions = [majority_class for _ in range(len(dataset))]
 	return predictions
+
 
 # we define a rule based classifier, in which we connect utterances to labels, such as 'how about' to the 'reqalts' label
 def rule_based(_, dataset):
@@ -180,6 +192,7 @@ def rule_based(_, dataset):
 		predictions.append(p)
 	return predictions
 
+
 # we define a decision tree, through the scikit predefined functions, learns simple decision rules inferred from data features
 # we set the mas depth at 30 to avoid overfitting.
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
@@ -191,6 +204,7 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	# plt.show()
 	return [r for r in clf.predict(dataset)]
 
+
 # we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
 # we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
@@ -201,6 +215,7 @@ def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.or
 		clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
 	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
+
 # stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
 def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
@@ -209,6 +224,7 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	clf.fit(data.trainset.vectorized, data.trainset.labels)
 	# used the same set-up as decision trees & feed forward neural network
 	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
+
 
 # we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
 # once stored, we plot a graph to visualise performance across models 
@@ -248,6 +264,7 @@ def comparison_evaluation(data):
 	fig.set_size_inches(18.5, 10.5)
 	fig.savefig('metric_plot', dpi=150)
 
+
 # we define a function allowing the user to interact with our models
 # this will process user input according to the defined classifier
 def interact(data, classifier, vectorize=True):
@@ -262,6 +279,7 @@ def interact(data, classifier, vectorize=True):
 		if str(test_text) == "0":
 			break
 
+
 # The function below calls different models with the supplied training and test data, it predicts the classes of sentances
 # in the supplied dataset
 def analyse_validation(data, classifier, vectorize=True):
@@ -270,6 +288,7 @@ def analyse_validation(data, classifier, vectorize=True):
 	else:
 		predictions = classifier(data, data.devset.sentences)
 	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
+
 
 # Takes a sentance as an argument, returns its predicted label as result, (no direct user input, used for classes)
 def predict_sentence(data, supplied_text, classifier, vectorize=True):
@@ -299,6 +318,7 @@ def dialogue(data, dialogue_state, user_utterance):
 	dialogue_state.current_message()
 	return dialogue_state
 
+
 class State():
 	HELLO = 0
 	ASK = 1
@@ -307,6 +327,7 @@ class State():
 	ASK_PREF_3 = 4
 	VALID = 5
 	SUGGEST = 6
+
 
 class DialogueState: #has dialogue state
 	def __init__(self):
@@ -335,8 +356,11 @@ class DialogueState: #has dialogue state
 		self.current_state = State.ASK
 		todo = True
 
+
 # Used to speed up fitting on models where it takes longer (like ff_nn)
-cached_models = { "ff_nn": False }
+cached_models = {"ff_nn": False}
+
+
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
 	data_elements = DataElements("dialog_acts.dat")
