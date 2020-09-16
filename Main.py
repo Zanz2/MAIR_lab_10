@@ -44,6 +44,7 @@ class DataElements:
 		self.unique_labels = list(set(sentence[0] for sentence in self.original_data))
 		self.label_to_id = {label: i for i, label in enumerate(self.unique_labels)}
 		self.id_to_label = {i: label for i, label in enumerate(self.unique_labels)}
+		self.cached_clfs = {}
 
 		self.fullset = Dataset(self.original_data, self.label_to_id, self.vectorizer)
 		self.trainset = Dataset(self.original_data[:self.n_train], self.label_to_id, self.vectorizer)
@@ -59,6 +60,14 @@ class DataElements:
 				line = line.split(" ", 1)  # this just seperates te first dialog_act from the remaining sentence
 				original_data.append(line)
 		return original_data
+
+	# if the classifier was already trained and added in cached_clfs then it returns that stored instance, otherwise it first trains the classifier on
+	# the supplied train_x, train_y data, stores the trained classifier, and returns it
+	def get_fitted_classifier(self, classifier, clf, train_x, train_y):
+		if classifier not in self.cached_clfs:
+			clf.fit(train_x, train_y)
+			self.cached_clfs[classifier] = clf
+		return self.cached_clfs[classifier]
 
 
 # we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
@@ -221,21 +230,20 @@ def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tre
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-	clf.fit(data.trainset.vectorized, data.trainset.labels)  # We train our tree
+	# cashed_clf is the trained classifier
+	cashed_clf = data.get_fitted_classifier("decisiontree", clf, data.trainset.vectorized, data.trainset.labels)
 	# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 	# plt.show()
-	return [r for r in clf.predict(dataset)]
+	return [r for r in cashed_clf.predict(dataset)]
 
 
 # we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
 # we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	if cached_models["ff_nn"]:
-		clf = cached_models["ff_nn"]
-	else:
-		clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
-		clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
-	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
+	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+	# cashed_clf is the trained classifier (if it still needs to be trained, then it takes a minute or so, depending on your pc)
+	cashed_clf = data.get_fitted_classifier("neuralnet", clf, data.trainset.vectorized, data.trainset.labels)
+	return [r for r in cashed_clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
 
 # stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
@@ -243,9 +251,8 @@ def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-lea
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
 	# penalty penalizes model complexity
-	clf.fit(data.trainset.vectorized, data.trainset.labels)
-	# used the same set-up as decision trees & feed forward neural network
-	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
+	cashed_clf = data.get_fitted_classifier("sgradientdescent", clf, data.trainset.vectorized, data.trainset.labels)
+	return [r for r in cashed_clf.predict(dataset)]  # accuracy of ~97%
 
 
 # we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
@@ -383,10 +390,6 @@ class DialogueState:  # has dialogue state
 		todo = True
 
 
-# Used to speed up fitting on models where it takes longer (like ff_nn)
-cached_models = {"ff_nn": False}
-
-
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
 	data_elements = DataElements("dialog_acts.dat")
@@ -404,7 +407,6 @@ def main():
 		print("4i for Feed forward neural network on user input")
 		print("5i for Stochastic gradient descent on user input")
 		print("c for Comparison Evaluation")
-		print("s to train and use cached neural network classifier (only teach neural network once)")
 		print("d to talk to with our recommender chatbot")
 		test_text = input()
 		command = str(test_text)
@@ -433,10 +435,6 @@ def main():
 		elif command == "c":
 			comparison_evaluation(data_elements)
 			break  # break out of loop to execute the plot.
-		elif command == "s":
-			cached_clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)
-			cached_clf.fit(data_elements.trainset.vectorized, data_elements.trainset.labels)
-			cached_models["ff_nn"] = cached_clf
 		elif command == "d":
 			dialogue_state = DialogueState()
 			dialogue_state.current_message()
