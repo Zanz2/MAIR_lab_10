@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import seaborn as sn
 import sys
 import operator
 import random
@@ -91,7 +92,7 @@ def count_prediction_accuracies(true_labels, predicted_labels):
 def calculate_precision(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_pos"] == 0:
-		return 1.
+		return 0.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
 
 
@@ -99,7 +100,7 @@ def calculate_precision(true_labels, predicted_labels):
 def calculate_recall(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_neg"] == 0:
-		return 1.
+		return 0.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
 
 
@@ -132,19 +133,40 @@ def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weig
 	assert(len(predicted_labels) == length)
 	f1scores = {}
 	for label in occurrences:
-		f1scores[label] = calculate_f1score([tl == label for tl in true_labels], [pl == label for pl in predicted_labels])
+		binary_true = [tl == label for tl in true_labels]
+		binary_pred = [pl == label for pl in predicted_labels]
+		f1scores[label] = calculate_f1score(binary_true, binary_pred)
 	if weighted:
-		return sum(f1scores[label] * occurrences[label] for label in occurrences) / sum(occurrences.values())
+		return sum(f1scores[label] * occurrences[label] for label in f1scores) / sum(occurrences.values())
 	else:
 		return sum(f1scores.values()) / len(f1scores)
 
 
 # show the user the outcome of the metrics 
 def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
-	print(f"{name} evaluation metrics")
-	print(f"    Prediction Accuracy: {calculate_accuracy(true_labels, predicted_labels)}")
-	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)}")
-	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)}")
+	accuracy = calculate_accuracy(true_labels, predicted_labels)
+	meanf1score = calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)
+	weightedf1score = calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)
+	print(f"{name} evaluation metrics:")
+	print(f"    Prediction Accuracy: {accuracy}")
+	print(f"          Mean F1-score: {meanf1score}")
+	print(f"      Weighted F1-score: {weightedf1score}")
+
+
+# plot a confusion matrix with the true labels on the y-axis and the predicted labels on the x-axis
+def plot_confusion_matrix(true_labels, predicted_labels, unique_labels, name):
+	assert(len(true_labels) == len(predicted_labels))
+	counts = np.zeros((len(unique_labels), len(unique_labels)))
+	label_to_index = {label: i for i, label in enumerate(unique_labels)}
+	for i in range(len(true_labels)):
+		true_index = label_to_index[true_labels[i]]
+		pred_index = label_to_index[predicted_labels[i]]
+		counts[true_index, pred_index] += 1
+	dataframe = pd.DataFrame(counts, index=unique_labels, columns=unique_labels)
+	fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+	sn.heatmap(dataframe, annot=True, fmt="g", ax=ax)
+	ax.set_title(name)
+	return fig
 
 
 # we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
@@ -171,20 +193,20 @@ def rule_based(_, dataset):
 		"yes": "affirm",
 		"hello": "hello",
 		"im": "inform",
-		"any" : "inform",
-		"phone" : "request",
-		"address" : "request",
-		"post" : "request",
-		"food" : "inform",
-		"west" : "inform",
-		"east" : "inform",
+		"any": "inform",
+		"phone": "request",
+		"address": "request",
+		"post": "request",
+		"food": "inform",
+		"west": "inform",
+		"east": "inform",
 		"centre": "inform",
 		"north": "inform",
-		"south" : "inform"
+		"south": "inform"
 	}
 	predictions = []
 	for sentence in dataset:
-		p = ""
+		p = "null"
 		for key, prediction in prediction_dict.items():
 			if key in sentence:
 				p = prediction
@@ -263,6 +285,10 @@ def comparison_evaluation(data):
 	plt.show()
 	fig.set_size_inches(18.5, 10.5)
 	fig.savefig('metric_plot', dpi=150)
+	# also plot the confusion matrix for all classifiers
+	for classifier in predictions:
+		fig = plot_confusion_matrix(data.devset.labels, predictions[classifier], data.unique_labels, classifier)
+		fig.savefig(f"confusion_matrix_{classifier}", dpi=150)
 
 
 # we define a function allowing the user to interact with our models
@@ -287,7 +313,7 @@ def analyse_validation(data, classifier, vectorize=True):
 		predictions = classifier(data, data.devset.vectorized)
 	else:
 		predictions = classifier(data, data.devset.sentences)
-	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
+	print_evaluation_metrics(data.devset.labels, predictions, data.devset.occurrences, str(classifier.__name__))
 
 
 # Takes a sentance as an argument, returns its predicted label as result, (no direct user input, used for classes)
@@ -319,7 +345,7 @@ def dialogue(data, dialogue_state, user_utterance):
 	return dialogue_state
 
 
-class State():
+class State:
 	HELLO = 0
 	ASK = 1
 	ASK_PREF_1 = 2
@@ -329,7 +355,7 @@ class State():
 	SUGGEST = 6
 
 
-class DialogueState: #has dialogue state
+class DialogueState:  # has dialogue state
 	def __init__(self):
 		self.current_state = State.HELLO
 		self.state_progression_array = [
@@ -352,7 +378,7 @@ class DialogueState: #has dialogue state
 		else:
 			end_of_switch = True
 
-	def handle_inform(self, user_utterance): # has to modify itself according to the sentence contents
+	def handle_inform(self, user_utterance):  # has to modify itself according to the sentence contents
 		self.current_state = State.ASK
 		todo = True
 
