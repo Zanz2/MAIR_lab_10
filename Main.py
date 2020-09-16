@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 
-
+# preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
+# then count the amount of times each label occurs
 class Dataset:
 	def __init__(self, full_data, label_to_id, vectorizer):
 		self.full_data = full_data
@@ -26,7 +27,8 @@ class Dataset:
 			occurrences[label] += 1
 		return occurrences
 
-
+# split data into training set, test set, full set, developing set
+# then parse the data and adjust it by removing newline characters and convert upper- to lowercase letters
 class DataElements:
 	def __init__(self, filename):
 		self.filename = filename
@@ -55,13 +57,14 @@ class DataElements:
 				original_data.append(line)
 		return original_data
 
-
+# we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
 def calculate_accuracy(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
 
-
+# we count the amount of true positives (the label is assigned and correct), true negatives (the label is rightfully not assigned), false negatives
+# (the label is not assigned when it should have been) and false positives (the label is assigned when it should not have been)
 def count_prediction_accuracies(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert (len(predicted_labels) == length)
@@ -79,21 +82,21 @@ def count_prediction_accuracies(true_labels, predicted_labels):
 				true_neg += 1
 	return {"true_pos": true_pos, "true_neg": true_neg, "false_pos": false_pos, "false_neg": false_neg}
 
-
+# we define a function to calculate precision, this is done by dividing the true positives by the total amount of positives (the percentage of correctly assigned positives)
 def calculate_precision(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_pos"] == 0:
 		return 1.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
 
-
+# we define a function to calculate recall, which is done by dividing the true positives by the total amount of correct predictions
 def calculate_recall(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_neg"] == 0:
 		return 1.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
 
-
+# function to calculate f1-score, which is a generalised version of precision and recall
 def calculate_f1score(true_labels, predicted_labels):
 	precision = calculate_precision(true_labels, predicted_labels)
 	recall = calculate_recall(true_labels, predicted_labels)
