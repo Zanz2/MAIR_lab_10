@@ -10,6 +10,8 @@ from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
+import Levenshtein # this will give you an error if you dont have it installed
+# open up terminal, cmd, or whatever has access to pip and run "pip install python-Levenshtein"
 
 
 # preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
@@ -381,8 +383,21 @@ class DialogueState:  # has dialogue state
 			self.current_state = State.HELLO
 		elif classified_label == "inform":
 			self.current_state = State.ASK
+			# [type_of_food, price_range, location]
+			keywords = get_keywords(user_utterance)
+			# first use check_word() to check if all the supplied keywords are correct
+			# then ask them if they are sure and if they want to specify any keywords
+			# that might be missing (maybe he only specified price range, ask about other 2)
+			# if they are not provided treat them as any (wildcard options)
+			#then suggest a restaurant
+
 		else:
 			self.current_state = State.INVALID
+
+	def check_word(self, word):
+		todo = True
+		# use levenshtein here, maybe find a correct word, or ask user to repeat
+		# if he made error
 
 
 # load dialog_acts, show options of interaction and display to user, process user request
