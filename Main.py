@@ -340,11 +340,11 @@ def dialogue(data, dialogue_state, user_utterance):
 	while True:
 		predicted_label = predict_sentence(data, user_utterance, sto_gr_des)[0]
 		# returns an array of one, so we select first entry
-		if predicted_label == "inform":
-			dialogue_state.handle_inform(user_utterance)
+		if predicted_label == "hello":
+			dialogue_state.handle_label(predicted_label, user_utterance)
 			break
-		elif predicted_label == "todo":
-			even_more_switch_statements = True
+		elif predicted_label == "inform":
+			dialogue_state.handle_label(predicted_label, user_utterance)
 			break
 		else:
 			break
@@ -365,29 +365,24 @@ class State:
 class DialogueState:  # has dialogue state
 	def __init__(self):
 		self.current_state = State.HELLO
-		self.state_progression_array = [
-			State.HELLO,
-			State.ASK,
-			State.ASK_PREF_1,
-			State.ASK_PREF_2,
-			State.ASK_PREF_3,
-			State.VALID,
-			State.SUGGEST
-		]
 		self.user_utterances_array = []
 
 	def current_message(self):
 		if self.current_state == State.HELLO:
 			print("Hi, welcome to the group 10 dialogue system.")
-			print("You can ask for restaurants by area , price range or fdood type . How may I help you?")
+			print("You can ask for restaurants by area , price range or food type . How may I help you?")
 		elif self.current_state == State.ASK:
 			print("I handled your inform")
 		else:
-			end_of_switch = True
+			print("I did not understand what you said, can you rephrase that?")
 
-	def handle_inform(self, user_utterance):  # has to modify itself according to the sentence contents
-		self.current_state = State.ASK
-		todo = True
+	def handle_label(self, classified_label, user_utterance):  # has to modify itself according to the sentence contents
+		if classified_label == "hello":
+			self.current_state = State.HELLO
+		elif classified_label == "inform":
+			self.current_state = State.ASK
+		else:
+			self.current_state = State.INVALID
 
 
 # load dialog_acts, show options of interaction and display to user, process user request
