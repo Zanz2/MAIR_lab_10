@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import seaborn as sn
 import sys
 import operator
 import random
@@ -9,6 +10,7 @@ from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
+
 
 # preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
 # then count the amount of times each label occurs
@@ -27,6 +29,7 @@ class Dataset:
 			occurrences[label] += 1
 		return occurrences
 
+
 # split data into training set, test set, full set, developing set
 # then parse the data and adjust it by removing newline characters and convert upper- to lowercase letters
 class DataElements:
@@ -41,6 +44,7 @@ class DataElements:
 		self.unique_labels = list(set(sentence[0] for sentence in self.original_data))
 		self.label_to_id = {label: i for i, label in enumerate(self.unique_labels)}
 		self.id_to_label = {i: label for i, label in enumerate(self.unique_labels)}
+		self.cached_clfs = {}
 
 		self.fullset = Dataset(self.original_data, self.label_to_id, self.vectorizer)
 		self.trainset = Dataset(self.original_data[:self.n_train], self.label_to_id, self.vectorizer)
@@ -57,11 +61,21 @@ class DataElements:
 				original_data.append(line)
 		return original_data
 
+	# if the classifier was already trained and added in cached_clfs then it returns that stored instance, otherwise it first trains the classifier on
+	# the supplied train_x, train_y data, stores the trained classifier, and returns it
+	def get_fitted_classifier(self, classifier, clf, train_x, train_y):
+		if classifier not in self.cached_clfs:
+			clf.fit(train_x, train_y)
+			self.cached_clfs[classifier] = clf
+		return self.cached_clfs[classifier]
+
+
 # we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
 def calculate_accuracy(true_labels, predicted_labels):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	return sum(true_labels[i] == predicted_labels[i] for i in range(length)) / length
+
 
 # we count the amount of true positives (the label is assigned and correct), true negatives (the label is rightfully not assigned), false negatives
 # (the label is not assigned when it should have been) and false positives (the label is assigned when it should not have been)
@@ -82,19 +96,22 @@ def count_prediction_accuracies(true_labels, predicted_labels):
 				true_neg += 1
 	return {"true_pos": true_pos, "true_neg": true_neg, "false_pos": false_pos, "false_neg": false_neg}
 
+
 # we define a function to calculate precision, this is done by dividing the true positives by the total amount of positives (the percentage of correctly assigned positives)
 def calculate_precision(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_pos"] == 0:
-		return 1.
+		return 0.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
+
 
 # we define a function to calculate recall, which is done by dividing the true positives by the total amount of correct predictions
 def calculate_recall(true_labels, predicted_labels):
 	counts = count_prediction_accuracies(true_labels, predicted_labels)
 	if counts["true_pos"] == 0 and counts["false_neg"] == 0:
-		return 1.
+		return 0.
 	return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
+
 
 # function to calculate f1-score, which is a generalised version of precision and recall
 def calculate_f1score(true_labels, predicted_labels):
@@ -103,6 +120,7 @@ def calculate_f1score(true_labels, predicted_labels):
 	if precision == 0 and recall == 0:
 		return 0.
 	return 2 * precision * recall / (precision + recall)
+
 
 # a function to call upon the previously defined metric functions, for ease of use and consistency
 def calculate_evaluationmetric(metric, true_labels, predicted_labels):
@@ -117,30 +135,55 @@ def calculate_evaluationmetric(metric, true_labels, predicted_labels):
 	else:
 		raise NotImplementedError()
 
+
 # a function which calculates the f1score for all labels together
 def calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False):
 	length = len(true_labels)
 	assert(len(predicted_labels) == length)
 	f1scores = {}
 	for label in occurrences:
-		f1scores[label] = calculate_f1score([tl == label for tl in true_labels], [pl == label for pl in predicted_labels])
+		binary_true = [tl == label for tl in true_labels]
+		binary_pred = [pl == label for pl in predicted_labels]
+		f1scores[label] = calculate_f1score(binary_true, binary_pred)
 	if weighted:
-		return sum(f1scores[label] * occurrences[label] for label in occurrences) / sum(occurrences.values())
+		return sum(f1scores[label] * occurrences[label] for label in f1scores) / sum(occurrences.values())
 	else:
 		return sum(f1scores.values()) / len(f1scores)
 
+
 # show the user the outcome of the metrics 
 def print_evaluation_metrics(true_labels, predicted_labels, occurrences, name):
-	print(f"{name} evaluation metrics")
-	print(f"    Prediction Accuracy: {calculate_accuracy(true_labels, predicted_labels)}")
-	print(f"          Mean F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)}")
-	print(f"      Weighted F1-score: {calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)}")
+	accuracy = calculate_accuracy(true_labels, predicted_labels)
+	meanf1score = calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=False)
+	weightedf1score = calculate_multiclassf1score(true_labels, predicted_labels, occurrences, weighted=True)
+	print(f"{name} evaluation metrics:")
+	print(f"    Prediction Accuracy: {accuracy}")
+	print(f"          Mean F1-score: {meanf1score}")
+	print(f"      Weighted F1-score: {weightedf1score}")
+
+
+# plot a confusion matrix with the true labels on the y-axis and the predicted labels on the x-axis
+def plot_confusion_matrix(true_labels, predicted_labels, unique_labels, name):
+	assert(len(true_labels) == len(predicted_labels))
+	counts = np.zeros((len(unique_labels), len(unique_labels)))
+	label_to_index = {label: i for i, label in enumerate(unique_labels)}
+	for i in range(len(true_labels)):
+		true_index = label_to_index[true_labels[i]]
+		pred_index = label_to_index[predicted_labels[i]]
+		counts[true_index, pred_index] += 1
+	dataframe = pd.DataFrame(counts, index=unique_labels, columns=unique_labels)
+	fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+	sn.heatmap(dataframe, annot=True, fmt="g", ax=ax)
+	ax.set_title(name)
+	return fig
+
 
 # we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
 def majority_classifier(data, dataset):
 	majority_class = max(data.trainset.occurrences.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
 	predictions = [majority_class for _ in range(len(dataset))]
 	return predictions
+
 
 # we define a rule based classifier, in which we connect utterances to labels, such as 'how about' to the 'reqalts' label
 def rule_based(_, dataset):
@@ -159,20 +202,20 @@ def rule_based(_, dataset):
 		"yes": "affirm",
 		"hello": "hello",
 		"im": "inform",
-		"any" : "inform",
-		"phone" : "request",
-		"address" : "request",
-		"post" : "request",
-		"food" : "inform",
-		"west" : "inform",
-		"east" : "inform",
+		"any": "inform",
+		"phone": "request",
+		"address": "request",
+		"post": "request",
+		"food": "inform",
+		"west": "inform",
+		"east": "inform",
 		"centre": "inform",
 		"north": "inform",
-		"south" : "inform"
+		"south": "inform"
 	}
 	predictions = []
 	for sentence in dataset:
-		p = ""
+		p = "null"
 		for key, prediction in prediction_dict.items():
 			if key in sentence:
 				p = prediction
@@ -180,35 +223,37 @@ def rule_based(_, dataset):
 		predictions.append(p)
 	return predictions
 
+
 # we define a decision tree, through the scikit predefined functions, learns simple decision rules inferred from data features
 # we set the mas depth at 30 to avoid overfitting.
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
 	clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)  
 	# I set criterion as entropy and split as best, so hopefully it will split on inform class
 	# https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-	clf.fit(data.trainset.vectorized, data.trainset.labels)  # We train our tree
+	# cashed_clf is the trained classifier
+	cashed_clf = data.get_fitted_classifier("decisiontree", clf, data.trainset.vectorized, data.trainset.labels)
 	# tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
 	# plt.show()
-	return [r for r in clf.predict(dataset)]
+	return [r for r in cashed_clf.predict(dataset)]
+
 
 # we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
 # we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
-	if cached_models["ff_nn"]:
-		clf = cached_models["ff_nn"]
-	else:
-		clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
-		clf.fit(data.trainset.vectorized, data.trainset.labels)  # takes around a minute or so, depending on your pc
-	return [r for r in clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
+	clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
+	# cashed_clf is the trained classifier (if it still needs to be trained, then it takes a minute or so, depending on your pc)
+	cashed_clf = data.get_fitted_classifier("neuralnet", clf, data.trainset.vectorized, data.trainset.labels)
+	return [r for r in cashed_clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
+
 
 # stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
 def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
 	clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
 	# loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
 	# penalty penalizes model complexity
-	clf.fit(data.trainset.vectorized, data.trainset.labels)
-	# used the same set-up as decision trees & feed forward neural network
-	return [r for r in clf.predict(dataset)]  # accuracy of ~97%
+	cashed_clf = data.get_fitted_classifier("sgradientdescent", clf, data.trainset.vectorized, data.trainset.labels)
+	return [r for r in cashed_clf.predict(dataset)]  # accuracy of ~97%
+
 
 # we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
 # once stored, we plot a graph to visualise performance across models 
@@ -247,6 +292,11 @@ def comparison_evaluation(data):
 	plt.show()
 	fig.set_size_inches(18.5, 10.5)
 	fig.savefig('metric_plot', dpi=150)
+	# also plot the confusion matrix for all classifiers
+	for classifier in predictions:
+		fig = plot_confusion_matrix(data.devset.labels, predictions[classifier], data.unique_labels, classifier)
+		fig.savefig(f"confusion_matrix_{classifier}", dpi=150)
+
 
 # we define a function allowing the user to interact with our models
 # this will process user input according to the defined classifier
@@ -262,6 +312,7 @@ def interact(data, classifier, vectorize=True):
 		if str(test_text) == "0":
 			break
 
+
 # The function below calls different models with the supplied training and test data, it predicts the classes of sentances
 # in the supplied dataset
 def analyse_validation(data, classifier, vectorize=True):
@@ -269,7 +320,8 @@ def analyse_validation(data, classifier, vectorize=True):
 		predictions = classifier(data, data.devset.vectorized)
 	else:
 		predictions = classifier(data, data.devset.sentences)
-	print_evaluation_metrics(data.devset.labels, predictions, data.trainset.occurrences, str(classifier.__name__))
+	print_evaluation_metrics(data.devset.labels, predictions, data.devset.occurrences, str(classifier.__name__))
+
 
 # Takes a sentance as an argument, returns its predicted label as result, (no direct user input, used for classes)
 def predict_sentence(data, supplied_text, classifier, vectorize=True):
@@ -299,7 +351,8 @@ def dialogue(data, dialogue_state, user_utterance):
 	dialogue_state.current_message()
 	return dialogue_state
 
-class State():
+
+class State:
 	HELLO = 0
 	ASK = 1
 	ASK_PREF_1 = 2
@@ -308,7 +361,8 @@ class State():
 	VALID = 5
 	SUGGEST = 6
 
-class DialogueState: #has dialogue state
+
+class DialogueState:  # has dialogue state
 	def __init__(self):
 		self.current_state = State.HELLO
 		self.state_progression_array = [
@@ -331,12 +385,11 @@ class DialogueState: #has dialogue state
 		else:
 			end_of_switch = True
 
-	def handle_inform(self, user_utterance): # has to modify itself according to the sentence contents
+	def handle_inform(self, user_utterance):  # has to modify itself according to the sentence contents
 		self.current_state = State.ASK
 		todo = True
 
-# Used to speed up fitting on models where it takes longer (like ff_nn)
-cached_models = { "ff_nn": False }
+
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
 	data_elements = DataElements("dialog_acts.dat")
@@ -354,7 +407,6 @@ def main():
 		print("4i for Feed forward neural network on user input")
 		print("5i for Stochastic gradient descent on user input")
 		print("c for Comparison Evaluation")
-		print("s to train and use cached neural network classifier (only teach neural network once)")
 		print("d to talk to with our recommender chatbot")
 		test_text = input()
 		command = str(test_text)
@@ -383,10 +435,6 @@ def main():
 		elif command == "c":
 			comparison_evaluation(data_elements)
 			break  # break out of loop to execute the plot.
-		elif command == "s":
-			cached_clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)
-			cached_clf.fit(data_elements.trainset.vectorized, data_elements.trainset.labels)
-			cached_models["ff_nn"] = cached_clf
 		elif command == "d":
 			dialogue_state = DialogueState()
 			dialogue_state.current_message()
