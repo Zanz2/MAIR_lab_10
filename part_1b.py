@@ -93,6 +93,39 @@ class SpeechAct:
 		return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
 
 
+class RestaurantInfo:
+	def __init__(self, filename):
+		self.filename = filename
+		self.restaurants = self.__parse_data()
+
+	def __parse_data(self):
+		restaurants = []
+		with open(self.filename) as f:
+			content = f.readlines()
+			for line in content:
+				# read the data into a list with an element for each line of text (and lowercase it).
+				line = line.rstrip("\n").lower()
+				columns = [c.strip('"') for c in line.split(",")]
+				name, price, area, food, phone, address, postcode = columns
+				restaurants.append(Restaurant(name, price, area, food, phone, address, postcode))
+		return restaurants
+
+
+class Restaurant:
+	def __init__(self, name, price, area, food, phone, address, postcode):
+		self.name = name
+		self.price = price
+		self.area = area
+		self.food = food
+		self.phone = phone
+		self.address = address
+		self.postcode = postcode
+
+	def __str__(self):
+		return f"{{'name': '{self.name}', 'price': '{self.price}', 'area': '{self.area}', 'food': '{self.food}', " \
+			   f"'phone': '{self.phone}', 'address': '{self.address}', 'postcode': '{self.postcode}'}}"
+
+
 class State:
 	HELLO = 0
 	ASK = 1
@@ -155,3 +188,4 @@ def dialogue(data, dialogue_state, user_utterance):
 
 
 data = DialogData("all_dialogs.txt")
+rests = RestaurantInfo("restaurant_info.csv")
