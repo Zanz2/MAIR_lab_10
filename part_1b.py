@@ -11,7 +11,8 @@ class DialogData:
 		original_data = []
 		with open(self.filename) as f:
 			content = f.readlines()
-			for line in content:  # I open the file, read its contents line by line, remove the trailing newline character, and convert them to lowercase
+			for line in content:
+				# read the data into a list with an element for each line of text (and lowercase it).
 				line = line.rstrip("\n").lower()
 				original_data.append(line)
 		splitted_data = [[]]
@@ -31,16 +32,12 @@ class DialogData:
 class Dialog:
 	def __init__(self, dialog_lines):
 		self.turns = []
-		self.session_id = None
-		self.taskno = None
-		self.task = None
 		turn_data = []
 		for line in dialog_lines:
-			print(line)
 			if line[:10] == "session id":
 				self.session_id = line[12:]
 			elif line[:4] == "task":
-				self.taskno = int(line[6:10])
+				self.task_no = int(line[6:10])
 				self.task = line[12:]
 			elif line[:10] == "turn index":
 				turn_data = []
@@ -51,18 +48,49 @@ class Dialog:
 			else:
 				raise NotImplementedError()
 
+	def __str__(self):
+		entries = {
+			"session_id": f"'{self.session_id}'",
+			"task_no": f"{self.task_no}",
+			"task": f"'{self.task}'",
+			"turns": f"[{', '.join(str(dt) for dt in self.turns)}]"}
+		return "{" + ", ".join(f"'{k}': {v}" for k, v in entries.items()) + "}"
+
 
 class DialogTurn:
 	def __init__(self, turn_lines):
-		for line in turn_lines:
-			if line[:6] == "system":
-				self.system = line[8:]
-			elif line[:4] == "user":
-				self.user = line[6:]
-			elif line[:10] == "speech act":
-				self.speech_act = line[12:]
-			else:
-				raise NotImplementedError()
+		assert(len(turn_lines) == 3)
+		assert(turn_lines[0][:6] == "system")
+		assert(turn_lines[1][:4] == "user")
+		assert(turn_lines[2][:10] == "speech act")
+		self.system = turn_lines[0][8:]
+		self.user = turn_lines[1][6:]
+		self.speech_acts = []
+		for act in turn_lines[2][12:].split("|"):
+			self.speech_acts.append(SpeechAct(act))
+
+	def __str__(self):
+		speech_acts = f"[{', '.join(str(sa) for sa in self.speech_acts)}]"
+		return f"{{'system': '{self.system}', 'user': '{self.user}', 'speech_acts: {speech_acts}"
+
+
+class SpeechAct:
+	def __init__(self, raw_text):
+		self.act = raw_text.split("(")[0]
+		self.parameters = {}
+		raw_parameters = raw_text.split("(")[1].replace(")", "")
+		for key_value in raw_parameters.split(","):
+			if key_value != "":
+				if "=" in key_value:
+					key, value = key_value.split("=")
+					self.parameters[key] = value
+				else:
+					key = f"unnamed{len(self.parameters)}"
+					self.parameters[key] = key_value
+
+	def __str__(self):
+		parameters = f"{{{', '.join(k + ': ' + v for k, v in self.parameters.items())}}}"
+		return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
 
 
 class State:
