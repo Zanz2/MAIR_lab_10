@@ -59,6 +59,48 @@ class Dialog:
         return f"{{'session_id': '{self.session_id}', 'task_no': {self.task_no}, 'task': '{self.task}', " \
                f"'turns': [{', '.join(str(dt) for dt in self.turns)}]}}"
 
+ #keyword matching + recognizing patterns
+ class PatternAndMatch:
+    def __init__(self, restaurant_info):
+        self.restaurant_info = restaurant_info
+        self.preference_values = {"food": [], "area": [], "price": []}
+        self.pref_dict = {"food": None, "area": None, "price": None}
+
+        
+        for restaurant in self.restaurant_info.restaurants:
+                if restaurant.food not in self.preference_values["food"] and restaurant.food != "food":
+                    self.preference_values["food"].append(restaurant.food)
+                if restaurant.area not in self.preference_values["area"] and restaurant.area != "area":
+                    self.preference_values["area"].append(restaurant.area)
+                if restaurant.price not in self.preference_values["price"] and restaurant.price != "pricerange":
+                    self.preference_values["price"].append(restaurant.price)
+    
+    def patterns(self, user_utterance):
+        
+        user_text = user_utterance
+        words = user_utterance.split(" ")
+        # it first looks for patterns in the utterance and fills in the value for food or area if one of these patterns is discovered
+        if (re.findall(r' serves (.*?) food', user_text)):
+            self.pref_dict["food"] = (re.findall(r' serves (.*?) food', user_text))[0]
+        if (re.findall(r' serving (.*?) food', user_text)):
+            self.pref_dict["food"] = (re.findall(r' serving (.*?) food', user_text))[0]
+        if re.findall(r' with (.*?) food', user_text):
+            self.pref_dict["food"] = (re.findall(r' with (.*?) food', user_text))[0]
+        if re.findall(r' in the (.*?) ', user_text):
+            self.pref_dict["area"] = (re.findall(r' in the (.*?) ', user_text))[0]
+
+        #then it checks per word if it falls in one of the categories
+        #if one of the categories already has a value attributed due to a pattern, then this category will not be considered
+        for word in words:
+            if self.pref_dict["food"] == None: 
+                if word in self.preference_values["food"]:
+                    self.pref_dict["food"] = word
+            if self.pref_dict["area"] == None:
+                if word in self.preference_values["area"]: 
+                    self.pref_dict["area"] = word
+            if word in self.preference_values["price"]:
+                self.pref_dict["price"] = word
+        return self.pref_dict
 
 # a class with all the turns of speech, so the 3 lines which comprise a turn (system ask, user response, classification)
 class DialogTurn:
