@@ -1,5 +1,6 @@
 import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
+import random as rnd
 
 
 # define dialog data as a class and parse
@@ -134,72 +135,290 @@ class Restaurant:
     def __str__(self):
         return f"{{'name': '{self.name}', 'price': '{self.price}', 'area': '{self.area}', 'food': '{self.food}', " \
                f"'phone': '{self.phone}', 'address': '{self.address}', 'postcode': '{self.postcode}'}}"
+    
+    def get(self, attribute):
+        if attribute == "name":
+            return self.name
+        elif attribute == "price":
+            return self.price
+        elif attribute == "area":
+            return self.area
+        elif attribute == "food":
+            return self.food
+        elif attribute == "phone":
+            return self.phone
+        elif attribute == "address":
+            return self.address
+        elif attribute == "postcode":
+            return self.postcode
+        else:
+            raise NotImplementedError()
 
 
-# define system states
-class State:
-    HELLO = 0
-    ASK = 1
-    ASK_PREF_1 = 2
-    ASK_PREF_2 = 3
-    ASK_PREF_3 = 4
-    VALID = 5
-    SUGGEST = 6
-
-
-# this class defines what the system is to do for any given state, then handles the user input by looking for keywords
-class DialogueState:  # has dialogue state
+class DialogHistory:
+    RESTAURANT_INFO = RestaurantInfo("restaurant_info.csv")
+    
     def __init__(self):
-        self.current_state = State.HELLO
-        self.user_utterances_array = []
-
-    def current_message(self):
-        if self.current_state == State.HELLO:
-            print("Hi, welcome to the group 10 dialogue system.")
-            print("You can ask for restaurants by area , price range or food type . How may I help you?")
-        elif self.current_state == State.ASK:
-            print("I handled your inform")
-        else:
-            print("I did not understand what you said, can you rephrase that?")
-
-    def handle_label(self, classified_label, user_utterance):  # has to modify itself according to the sentence contents
-        if classified_label == "hello":
-            self.current_state = State.HELLO
-        elif classified_label == "inform":
-            self.current_state = State.ASK
-            # [type_of_food, price_range, location]
-            keywords = get_keywords(user_utterance)
-            # first use check_word() to check if all the supplied keywords are correct
-            # then ask them if they are sure and if they want to specify any keywords
-            # that might be missing (maybe he only specified price range, ask about other 2)
-            # if they are not provided treat them as any (wildcard options)
-            # then suggest a restaurant
-        else:
-            self.current_state = State.INVALID
-
-    def check_word(self, word):
-        todo = True
-        # use levenshtein here, maybe find a correct word, or ask user to repeat
-        # if he made error
+        self.preferences = {"price": None, "area": None, "food": None}
+        self.declined = []
+        self.requests = []
+        self.terminate = False
+        self.speech_acts = []
+        self.last_suggestion = None
+        self.last_preference = None
+    
+    def decline(self, restaurant):
+        self.declined.append(restaurant)
+    
+    def set_request(self, request):
+        assert(request in ("pricerange", "area", "food", "addr", "phone", "postcode"))
+        request = request.replace("pricerange", "price").replace("addr", "address")
+        if request not in self.requests:
+            self.requests.append(request)
+    
+    def preferences_filled(self):
+        return len([preference is None for preference in self.preferences.values()]) == 0
+    
+    def restaurants(self):
+        selection = [r for r in self.RESTAURANT_INFO.restaurants]
+        for category, preference in self.preferences.values():
+            if preference not in (None, "dontcare"):
+                selection = [r for r in selection if r.get(category) == preference]
+        selection = [r for r in selection if r not in self.declined]
+        return selection
 
 
-# define dialogue by referring back to the functions to handle user input and then classified state
-def dialogue(data, dialogue_state, user_utterance):
-    while True:
-        predicted_label = predict_sentence(data, user_utterance, sto_gr_des)[0]
-        # returns an array of one, so we select first entry
-        if predicted_label == "hello":
-            dialogue_state.handle_label(predicted_label, user_utterance)
-            break
-        elif predicted_label == "inform":
-            dialogue_state.handle_label(predicted_label, user_utterance)
-            break
-        else:
-            break
-    dialogue_state.current_message()
-    return dialogue_state
+class DialogState:
+    class BaseState:
+        def __init__(self, state_type, state, history):
+            self.state_type = state_type
+            self.state = state
+            self.history = history
+    
+        def determine_next_state(self):
+            raise NotImplementedError()
+        
+    class SystemState(BaseState):
+        def __init__(self, state, history):
+            super().__init__("SYSTEM", state, history)
+    
+        def system_sentence(self):
+            raise NotImplementedError()
+    
+        def determine_next_state(self):
+            raise NotImplementedError()
+
+    class UserState(BaseState):
+        def __init__(self, state, history):
+            super().__init__("USER", state, history)
+    
+        def process_user_act(self, speech_act):
+            raise NotImplementedError()
+    
+        def determine_next_state(self):
+            raise NotImplementedError()
+
+    class EvalState(BaseState):
+        def __init__(self, state, history):
+            super().__init__("EVAL", state, history)
+        
+        def determine_next_state(self):
+            raise NotImplementedError()
+        
+    class Welcome(SystemState):
+        def __init__(self, history):
+            super().__init__("Welcome", history)
+        
+        def system_sentence(self):
+            return "Hi, welcome to the group 10 dialogue system. You can ask for restaurants by area , price range " \
+                   "or food type . How may I help you?"
+        
+        def determine_next_state(self):
+            return DialogState.ExpressPreference(self.history)
+                
+    class ReportUnavailability(SystemState):
+        def __init__(self, history):
+            super().__init__("ReportUnavailability", history)
+        
+        def system_sentence(self):
+            specs = []
+            if self.history.preferences["area"] not in (None, "dontcare"):
+                specs.append(f"in the {self.history.preferences['area']} part of town")
+            if self.history.preferences["food"] not in (None, "dontcare"):
+                specs.append(f"serving {self.history.preferences['food']} food")
+            if self.history.preferences["price"] not in (None, "dontcare"):
+                specs.append(f"in the {self.history.preferences['price']} pricerange")
+            return f"I'm sorry, there are no restaurants {', '.join(specs)}. Please change one of your preferences."
+        
+        def determine_next_state(self):
+            return DialogState.ExpressPreference(self.history)
+    
+    class AskPreference(SystemState):
+        def __init__(self, history):
+            super().__init__("AskPreference", history)
+            open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
+            self.history.last_preference = rnd.choice(open_preferences)
+        
+        def system_sentence(self):
+            if self.history.last_preference == "price":
+                return "Would you like something in the cheap, moderate, or expensive price range?"
+            elif self.history.last_preference == "area":
+                return "What part of town do you have in mind?"
+            elif self.history.last_preference == "food":
+                return "What kind of food would you like?"
+            else:
+                raise NotImplementedError()
+        
+        def determine_next_state(self):
+            return DialogState.ExpressPreference(self.history)
+    
+    class SuggestOption(SystemState):
+        def __init__(self, history):
+            super().__init__("SuggestOption", history)
+            self.history.last_suggestion = rnd.choice(self.history.restaurants())
+        
+        def system_sentence(self):
+            specs = []
+            if self.history.preferences["area"] not in (None, "dontcare"):
+                specs.append(f"in the {self.history.last_suggestion.area} part of town")
+            if self.history.preferences["price"] not in (None, "dontcare"):
+                specs.append(f"the prices are {self.history.last_suggestion.price}")
+            if self.history.preferences["food"] not in (None, "dontcare"):
+                specs.append(f"they serve {self.history.last_suggestion.area} food")
+            if len(specs) > 0:
+                specs[-1] = "and " + specs[-1]
+            return f"{self.history.last_suggestion} is a nice restaurant {', '.join(specs)}"
+        
+        def determine_next_state(self):
+            return DialogState.Reply(self.history)
+    
+    class ProvideDetails(SystemState):
+        def __init__(self, history):
+            super().__init__("ProvideDetails", history)
+        
+        def system_sentence(self):
+            specs = []
+            suggestion = self.history.last_suggestion
+            for request in self.history.requests:
+                specs.append(f"the {request} is: {suggestion.get(request)}")
+            specs[-1] = "and " + specs[-1]
+            return f"{suggestion.name} is a nice restaurant, {', '.join(specs)}."
+        
+        def determine_next_state(self):
+            return DialogState.Reply(self.history)
+    
+    class Clarify(SystemState):
+        def __init__(self, history):
+            super().__init__("Clarify", history)
+
+        def system_sentence(self):
+            return "Sorry, I didn't get that."
+
+        def determine_next_state(self):
+            return DialogState.Reply(self.history)
+
+    class ExpressPreference(UserState):
+        def __init__(self, history):
+            super().__init__("ExpressPreference", history)
+
+        def process_user_act(self, speech_act):
+            self.history.speech_acts.append(speech_act)
+            if speech_act.act == "inform":
+                for category, preference in speech_act.parameters.items():
+                    self.history.preferences[category] = preference
+
+        def determine_next_state(self):
+            return DialogState.AllPreferencesKnown(self.history)
+    
+    class Reply(UserState):
+        def __init__(self, history):
+            super().__init__("Reply", history)
+
+        def process_user_act(self, speech_act):
+            self.history.speech_acts.append(speech_act)
+            if speech_act.act == "reqalts":
+                self.history.decline(self.history.last_suggestion)
+                for category, preference in speech_act.parameters.items():
+                    self.history.preferences[category] = preference
+            elif speech_act.act == "request":
+                for request in speech_act.parameters.values():
+                    self.history.set_request(request)
+            elif speech_act.act in ("thankyou", "bye"):
+                self.history.terminate = True
+
+        def determine_next_state(self):
+            return DialogState.DetailsAsked(self.history)
+
+    class AllPreferencesKnown(EvalState):
+        def __init__(self, history):
+            super().__init__("AllPreferencesKnown", history)
+    
+        def determine_next_state(self):
+            if self.history.preferences_filled():
+                return DialogState.SuggestionAvailable(self.history)
+            else:
+                return DialogState.AskPreference(self.history)
+
+    class SuggestionAvailable(EvalState):
+        def __init__(self, history):
+            super().__init__("SuggestionAvailable", history)
+    
+        def determine_next_state(self):
+            if len(self.history.restaurants()) > 0:
+                return DialogState.SuggestOption(self.history)
+            else:
+                return DialogState.ReportUnavailability(self.history)
+
+    class DetailsAsked(EvalState):
+        def __init__(self, history):
+            super().__init__("DetailsAsked", history)
+    
+        def determine_next_state(self):
+            if self.history.speech_acts[-1].act == "request":
+                return DialogState.ProvideDetails(self.history)
+            else:
+                return DialogState.AlternativeAsked(self.history)
+
+    class AlternativeAsked(EvalState):
+        def __init__(self, history):
+            super().__init__("AlternativeAsked", history)
+    
+        def determine_next_state(self):
+            if self.history.speech_acts[-1].act == "reqalts":
+                return DialogState.SuggestionAvailable(self.history)
+            else:
+                return DialogState.ThanksBye(self.history)
+
+    class ThanksBye(EvalState):
+        def __init__(self, history):
+            super().__init__("ThanksBye", history)
+    
+        def determine_next_state(self):
+            if self.history.speech_acts[-1].act in ("thankyou", "bye"):
+                return None
+            else:
+                return DialogState.Clarify(self.history)
 
 
-# load data
+def utterance_to_speech_act(utterance):
+    return utterance
+
+
+def transition(current_state, utterance):
+    system_sentence, next_state = None, None
+    if current_state.state_type == "SYSTEM":
+        system_sentence = current_state.system_sentence()
+        next_state = current_state.determine_next_state()
+    elif current_state.state_type == "USER":
+        speech_act = utterance_to_speech_act(utterance)
+        current_state.process_user_act(speech_act)
+        next_state = current_state.determine_next_state()
+    elif current_state.state_type == "EVAL":
+        next_state = current_state.determine_next_state()
+    else:
+        raise NotImplementedError()
+    return next_state, system_sentence
+
+
 data = DialogData("all_dialogs.txt")
 rests = RestaurantInfo("restaurant_info.csv")
