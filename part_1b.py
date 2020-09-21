@@ -1,6 +1,7 @@
 import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
 
+
 # define dialog data as a class and parse
 class DialogData:
     def __init__(self, filename):
@@ -30,6 +31,7 @@ class DialogData:
             dialogs.append(Dialog(dialog_lines))
         return dialogs
 
+
 # seperate class to categorise into task number, turn index, session id
 # actual lines (following user:, speech act: , and system:) are added to turn_data
 class Dialog:
@@ -53,12 +55,9 @@ class Dialog:
     
     # define session id, task no, task and turns
     def __str__(self):
-        entries = {
-            "session_id": f"'{self.session_id}'",
-            "task_no": f"{self.task_no}",
-            "task": f"'{self.task}'",
-            "turns": f"[{', '.join(str(dt) for dt in self.turns)}]"}
-        return "{" + ", ".join(f"'{k}': {v}" for k, v in entries.items()) + "}"
+        return f"{{'session_id': '{self.session_id}', 'task_no': {self.task_no}, 'task': '{self.task}', " \
+               f"'turns': [{', '.join(str(dt) for dt in self.turns)}]}}"
+
 
 # a class with all the turns of speech, so the 3 lines which comprise a turn (system ask, user response, classification)
 class DialogTurn:
@@ -78,7 +77,10 @@ class DialogTurn:
         speech_acts = f"[{', '.join(str(sa) for sa in self.speech_acts)}]"
         return f"{{'system': '{self.system}', 'user': '{self.user}', 'speech_acts: {speech_acts}"
 
-# define speechact as a class, add split text 
+
+# we define a class of speech acts (for example inform and request) in which we split the label from the parameters
+# then for inform, we split the key (such as area) from the value (such as south) and add them to the dictionary
+# for request we generate numbered keys and add those to the values
 class SpeechAct:
     def __init__(self, raw_text):
         self.act = raw_text.split("(")[0]
@@ -92,10 +94,12 @@ class SpeechAct:
                 else:
                     key = f"unnamed{len(self.parameters)}"
                     self.parameters[key] = key_value
-
+    
+    # assign print strings for readability
     def __str__(self):
         parameters = f"{{{', '.join(k + ': ' + v for k, v in self.parameters.items())}}}"
         return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
+
 
 # here we load the restaurant info and create a list with the restaurant data (including name and pricerange etc)
 class RestaurantInfo:
@@ -115,6 +119,7 @@ class RestaurantInfo:
                 restaurants.append(Restaurant(name, price, area, food, phone, address, postcode))
         return restaurants
 
+
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
 class Restaurant:
     def __init__(self, name, price, area, food, phone, address, postcode):
@@ -130,6 +135,7 @@ class Restaurant:
         return f"{{'name': '{self.name}', 'price': '{self.price}', 'area': '{self.area}', 'food': '{self.food}', " \
                f"'phone': '{self.phone}', 'address': '{self.address}', 'postcode': '{self.postcode}'}}"
 
+
 # define system states
 class State:
     HELLO = 0
@@ -139,6 +145,7 @@ class State:
     ASK_PREF_3 = 4
     VALID = 5
     SUGGEST = 6
+
 
 # this class defines what the system is to do for any given state, then handles the user input by looking for keywords
 class DialogueState:  # has dialogue state
@@ -175,6 +182,7 @@ class DialogueState:  # has dialogue state
         # use levenshtein here, maybe find a correct word, or ask user to repeat
         # if he made error
 
+
 # define dialogue by referring back to the functions to handle user input and then classified state
 def dialogue(data, dialogue_state, user_utterance):
     while True:
@@ -190,6 +198,7 @@ def dialogue(data, dialogue_state, user_utterance):
             break
     dialogue_state.current_message()
     return dialogue_state
+
 
 # load data
 data = DialogData("all_dialogs.txt")
