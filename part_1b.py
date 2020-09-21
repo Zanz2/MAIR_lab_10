@@ -59,7 +59,7 @@ class Dialog:
         return f"{{'session_id': '{self.session_id}', 'task_no': {self.task_no}, 'task': '{self.task}', " \
                f"'turns': [{', '.join(str(dt) for dt in self.turns)}]}}"
 
- #keyword matching + recognizing patterns
+ #keyword matching + recognizing patterns, still misses levensthein distance
  class PatternAndMatch:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
