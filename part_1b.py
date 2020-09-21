@@ -116,50 +116,50 @@ class RestaurantInfo:
                 # read the data into a list with an element for each line of text (and lowercase it).
                 line = line.rstrip("\n").lower()
                 columns = [c.strip('"') for c in line.split(",")]
-                name, price, area, food, phone, address, postcode = columns
-                restaurants.append(Restaurant(name, price, area, food, phone, address, postcode))
+                name, pricerange, area, food, phone, addr, postcode = columns
+                restaurants.append(Restaurant(name, pricerange, area, food, phone, addr, postcode))
         return restaurants
 
 
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
 class Restaurant:
-    def __init__(self, name, price, area, food, phone, address, postcode):
+    def __init__(self, name, pricerange, area, food, phone, addr, postcode):
         self.name = name
-        self.price = price
+        self.pricerange = pricerange
         self.area = area
         self.food = food
         self.phone = phone
-        self.address = address
+        self.addr = addr
         self.postcode = postcode
 
     def __str__(self):
-        return f"{{'name': '{self.name}', 'price': '{self.price}', 'area': '{self.area}', 'food': '{self.food}', " \
-               f"'phone': '{self.phone}', 'address': '{self.address}', 'postcode': '{self.postcode}'}}"
+        return f"{{'name': '{self.name}', 'pricerange': '{self.pricerange}', 'area': '{self.area}', 'food': " \
+               f"'{self.food}', 'phone': '{self.phone}', 'addr': '{self.addr}', 'postcode': '{self.postcode}'}}"
     
     def get(self, attribute):
         if attribute == "name":
             return self.name
-        elif attribute == "price":
-            return self.price
+        elif attribute == "pricerange":
+            return self.pricerange
         elif attribute == "area":
             return self.area
         elif attribute == "food":
             return self.food
         elif attribute == "phone":
             return self.phone
-        elif attribute == "address":
-            return self.address
+        elif attribute == "addr":
+            return self.addr
         elif attribute == "postcode":
             return self.postcode
         else:
+            print(f"Unknown attribute for Restaurant: {attribute}")
             raise NotImplementedError()
 
 
 class DialogHistory:
-    RESTAURANT_INFO = RestaurantInfo("restaurant_info.csv")
-    
-    def __init__(self):
-        self.preferences = {"price": None, "area": None, "food": None}
+    def __init__(self, restaurant_info):
+        self.restaurant_info = restaurant_info
+        self.preferences = {"pricerange": None, "area": None, "food": None}
         self.declined = []
         self.requests = []
         self.terminate = False
@@ -172,16 +172,20 @@ class DialogHistory:
     
     def set_request(self, request):
         assert(request in ("pricerange", "area", "food", "addr", "phone", "postcode"))
-        request = request.replace("pricerange", "price").replace("addr", "address")
         if request not in self.requests:
             self.requests.append(request)
-    
+
+    def get_requests(self):
+        requests = self.requests
+        self.requests = []
+        return requests
+
     def preferences_filled(self):
-        return len([preference is None for preference in self.preferences.values()]) == 0
+        return len([preference for preference in self.preferences.values() if preference is None]) == 0
     
     def restaurants(self):
-        selection = [r for r in self.RESTAURANT_INFO.restaurants]
-        for category, preference in self.preferences.values():
+        selection = [r for r in self.restaurant_info.restaurants]
+        for category, preference in self.preferences.items():
             if preference not in (None, "dontcare"):
                 selection = [r for r in selection if r.get(category) == preference]
         selection = [r for r in selection if r not in self.declined]
@@ -230,7 +234,7 @@ class DialogState:
             super().__init__("Welcome", history)
         
         def system_sentence(self):
-            return "Hi, welcome to the group 10 dialogue system. You can ask for restaurants by area , price range " \
+            return "Hi, welcome to the group 10 dialogue system. You can ask for restaurants by area , pricerange " \
                    "or food type . How may I help you?"
         
         def determine_next_state(self):
@@ -246,8 +250,8 @@ class DialogState:
                 specs.append(f"in the {self.history.preferences['area']} part of town")
             if self.history.preferences["food"] not in (None, "dontcare"):
                 specs.append(f"serving {self.history.preferences['food']} food")
-            if self.history.preferences["price"] not in (None, "dontcare"):
-                specs.append(f"in the {self.history.preferences['price']} pricerange")
+            if self.history.preferences["pricerange"] not in (None, "dontcare"):
+                specs.append(f"in the {self.history.preferences['pricerange']} pricerange")
             return f"I'm sorry, there are no restaurants {', '.join(specs)}. Please change one of your preferences."
         
         def determine_next_state(self):
@@ -260,7 +264,7 @@ class DialogState:
             self.history.last_preference = rnd.choice(open_preferences)
         
         def system_sentence(self):
-            if self.history.last_preference == "price":
+            if self.history.last_preference == "pricerange":
                 return "Would you like something in the cheap, moderate, or expensive price range?"
             elif self.history.last_preference == "area":
                 return "What part of town do you have in mind?"
@@ -281,13 +285,13 @@ class DialogState:
             specs = []
             if self.history.preferences["area"] not in (None, "dontcare"):
                 specs.append(f"in the {self.history.last_suggestion.area} part of town")
-            if self.history.preferences["price"] not in (None, "dontcare"):
-                specs.append(f"the prices are {self.history.last_suggestion.price}")
+            if self.history.preferences["pricerange"] not in (None, "dontcare"):
+                specs.append(f"the prices are {self.history.last_suggestion.pricerange}")
             if self.history.preferences["food"] not in (None, "dontcare"):
-                specs.append(f"they serve {self.history.last_suggestion.area} food")
+                specs.append(f"they serve {self.history.last_suggestion.food} food")
             if len(specs) > 0:
                 specs[-1] = "and " + specs[-1]
-            return f"{self.history.last_suggestion} is a nice restaurant {', '.join(specs)}"
+            return f"{self.history.last_suggestion.name} is a nice restaurant {', '.join(specs)}"
         
         def determine_next_state(self):
             return DialogState.Reply(self.history)
@@ -299,7 +303,8 @@ class DialogState:
         def system_sentence(self):
             specs = []
             suggestion = self.history.last_suggestion
-            for request in self.history.requests:
+            requests = self.history.get_requests()
+            for request in requests:
                 specs.append(f"the {request} is: {suggestion.get(request)}")
             specs[-1] = "and " + specs[-1]
             return f"{suggestion.name} is a nice restaurant, {', '.join(specs)}."
@@ -325,7 +330,8 @@ class DialogState:
             self.history.speech_acts.append(speech_act)
             if speech_act.act == "inform":
                 for category, preference in speech_act.parameters.items():
-                    self.history.preferences[category] = preference
+                    if category in ("pricerange", "food", "area"):
+                        self.history.preferences[category] = preference
 
         def determine_next_state(self):
             return DialogState.AllPreferencesKnown(self.history)
@@ -339,7 +345,8 @@ class DialogState:
             if speech_act.act == "reqalts":
                 self.history.decline(self.history.last_suggestion)
                 for category, preference in speech_act.parameters.items():
-                    self.history.preferences[category] = preference
+                    if category in ("pricerange", "food", "area"):
+                        self.history.preferences[category] = preference
             elif speech_act.act == "request":
                 for request in speech_act.parameters.values():
                     self.history.set_request(request)
@@ -401,11 +408,11 @@ class DialogState:
 
 
 def utterance_to_speech_act(utterance):
-    return utterance
+    return SpeechAct(utterance)
 
 
 def transition(current_state, utterance):
-    system_sentence, next_state = None, None
+    system_sentence = None
     if current_state.state_type == "SYSTEM":
         system_sentence = current_state.system_sentence()
         next_state = current_state.determine_next_state()
@@ -420,5 +427,26 @@ def transition(current_state, utterance):
     return next_state, system_sentence
 
 
-data = DialogData("all_dialogs.txt")
-rests = RestaurantInfo("restaurant_info.csv")
+def chat(restaurant_info):
+    history = DialogHistory(restaurant_info)
+    state = DialogState.Welcome(history)
+    while state is not None:
+        utterance = None
+        if state.state_type == "USER":
+            utterance = input("").lower()
+            print(f"USER: {utterance}")
+        state, sentence = transition(state, utterance)
+        if sentence is not None:
+            print(f"SYSTEM: {sentence}")
+    print("CHAT TERMINATED")
+
+
+def main():
+    dialog_data = DialogData("all_dialogs.txt")
+    restaurant_info = RestaurantInfo("restaurant_info.csv")
+    # dialog_history = DialogHistory(restaurant_info)
+    chat(restaurant_info)
+
+
+if __name__ == "__main__":
+    main()
