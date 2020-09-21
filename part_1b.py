@@ -78,7 +78,9 @@ class DialogTurn:
         speech_acts = f"[{', '.join(str(sa) for sa in self.speech_acts)}]"
         return f"{{'system': '{self.system}', 'user': '{self.user}', 'speech_acts: {speech_acts}"
 
-# define speechact as a class, add split text 
+# we define a class of speech acts (for example inform and request) in which we split the label from the parameters
+# then for inform, we split the key (such as area) from the value (such as south) and add them to the dictionary
+# for request we generate numbered keys and add those to the values
 class SpeechAct:
     def __init__(self, raw_text):
         self.act = raw_text.split("(")[0]
@@ -92,7 +94,8 @@ class SpeechAct:
                 else:
                     key = f"unnamed{len(self.parameters)}"
                     self.parameters[key] = key_value
-
+    
+    # assign print strings for readability
     def __str__(self):
         parameters = f"{{{', '.join(k + ': ' + v for k, v in self.parameters.items())}}}"
         return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
