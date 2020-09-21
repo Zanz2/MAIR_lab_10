@@ -113,12 +113,13 @@ class RestaurantInfo:
         restaurants = []
         with open(self.filename) as f:
             content = f.readlines()
-            for line in content:
+            for i, line in enumerate(content):
                 # read the data into a list with an element for each line of text (and lowercase it).
-                line = line.rstrip("\n").lower()
-                columns = [c.strip('"') for c in line.split(",")]
-                name, pricerange, area, food, phone, addr, postcode = columns
-                restaurants.append(Restaurant(name, pricerange, area, food, phone, addr, postcode))
+                if i > 0:
+                    line = line.rstrip("\n").lower()
+                    columns = [c.strip('"') for c in line.split(",")]
+                    name, pricerange, area, food, phone, addr, postcode = columns
+                    restaurants.append(Restaurant(name, pricerange, area, food, phone, addr, postcode))
         return restaurants
 
 
@@ -156,47 +157,46 @@ class Restaurant:
             print(f"Unknown attribute for Restaurant: {attribute}")
             raise NotImplementedError()
 
-    # keyword matching + recognizing patterns, still misses levensthein distance
 
-
+# keyword matching + recognizing patterns, still misses levensthein distance
 class PatternAndMatch:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
-        self.preference_values = {"food": [], "area": [], "price": []}
-        self.pref_dict = {"food": None, "area": None, "price": None}
+        self.preference_values = {"food": [], "area": [], "pricerange": []}
 
         for restaurant in self.restaurant_info.restaurants:
-            if restaurant.food not in self.preference_values["food"] and restaurant.food != "food":
+            if restaurant.food not in self.preference_values["food"]:
                 self.preference_values["food"].append(restaurant.food)
-            if restaurant.area not in self.preference_values["area"] and restaurant.area != "area":
+            if restaurant.area not in self.preference_values["area"]:
                 self.preference_values["area"].append(restaurant.area)
-            if restaurant.price not in self.preference_values["price"] and restaurant.price != "pricerange":
-                self.preference_values["price"].append(restaurant.price)
+            if restaurant.pricerange not in self.preference_values["pricerange"]:
+                self.preference_values["pricerange"].append(restaurant.pricerange)
 
     def patterns(self, user_utterance):
         user_text = user_utterance
         words = user_utterance.split(" ")
+        pref_dict = {"food": None, "area": None, "pricerange": None}
         # it first looks for patterns in the utterance and fills in the value for food or area if one of these patterns is discovered
         if re.findall(r' serves (.*?) food', user_text):
-            self.pref_dict["food"] = (re.findall(r' serves (.*?) food', user_text))[0]
+            pref_dict["food"] = (re.findall(r' serves (.*?) food', user_text))[0]
         if re.findall(r' serving (.*?) food', user_text):
-            self.pref_dict["food"] = (re.findall(r' serving (.*?) food', user_text))[0]
+            pref_dict["food"] = (re.findall(r' serving (.*?) food', user_text))[0]
         if re.findall(r' with (.*?) food', user_text):
-            self.pref_dict["food"] = (re.findall(r' with (.*?) food', user_text))[0]
+            pref_dict["food"] = (re.findall(r' with (.*?) food', user_text))[0]
         if re.findall(r' in the (.*?) ', user_text):
-            self.pref_dict["area"] = (re.findall(r' in the (.*?) ', user_text))[0]
+            pref_dict["area"] = (re.findall(r' in the (.*?) ', user_text))[0]
         # then it checks per word if it falls in one of the categories
         # if one of the categories already has a value attributed due to a pattern, then this category will not be considered
         for word in words:
-            if self.pref_dict["food"] is None:
+            if pref_dict["food"] is None:
                 if word in self.preference_values["food"]:
-                    self.pref_dict["food"] = word
-            if self.pref_dict["area"] is None:
+                    pref_dict["food"] = word
+            if pref_dict["area"] is None:
                 if word in self.preference_values["area"]:
-                    self.pref_dict["area"] = word
-            if word in self.preference_values["price"]:
-                self.pref_dict["price"] = word
-        return self.pref_dict
+                    pref_dict["area"] = word
+            if word in self.preference_values["pricerange"]:
+                pref_dict["pricerange"] = word
+        return pref_dict
 
 
 class DialogHistory:
@@ -236,6 +236,20 @@ class DialogHistory:
 
 
 class DialogState:
+    # Here we define all the the different states of our system, corresponding to the flowchart as seen in the
+    # report. Hierarchically it is structed like this:
+    # BaseState:
+    #     SystemState: (These states are were the system generates a sentence)
+    #         Welcome
+    #         ReportUnavailability
+    #         ....
+    #     UserState: (These states are were the user input is being handled)
+    #         ExpressPreference
+    #         ....
+    #     EvalState: (These states are were conditions are being checked)
+    #         AllPreferencesKnown
+    #         ....
+    # In every state we can calculate the next state (until the flowchart is exhausted).
     class BaseState:
         def __init__(self, state_type, state, history):
             self.state_type = state_type
@@ -303,6 +317,7 @@ class DialogState:
     class AskPreference(SystemState):
         def __init__(self, history):
             super().__init__("AskPreference", history)
+            # choose a random preference that is not yet known to ask the user.
             open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
             self.history.last_preference = rnd.choice(open_preferences)
         
@@ -322,6 +337,7 @@ class DialogState:
     class SuggestOption(SystemState):
         def __init__(self, history):
             super().__init__("SuggestOption", history)
+            # choose a random option from the restaurants satisfying the user's conditions.
             self.history.last_suggestion = rnd.choice(self.history.restaurants())
         
         def system_sentence(self):
@@ -347,6 +363,8 @@ class DialogState:
             specs = []
             suggestion = self.history.last_suggestion
             requests = self.history.get_requests()
+            if len(requests) == 0:  # this is temporary, until we have a matcher for 'request' acts.
+                requests = ["addr", "postcode", "phone"]
             for request in requests:
                 specs.append(f"the {request} is: {suggestion.get(request)}")
             specs[-1] = "and " + specs[-1]
@@ -371,6 +389,7 @@ class DialogState:
 
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
+            # update new information from the user
             if speech_act.act == "inform":
                 for category, preference in speech_act.parameters.items():
                     if category in ("pricerange", "food", "area"):
@@ -385,6 +404,7 @@ class DialogState:
 
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
+            # update new information from the user, or save the user requests to answer in the next state.
             if speech_act.act == "reqalts":
                 self.history.decline(self.history.last_suggestion)
                 for category, preference in speech_act.parameters.items():
@@ -450,27 +470,44 @@ class DialogState:
                 return DialogState.Clarify(self.history)
 
 
-def utterance_to_speech_act(utterance):
-    return SpeechAct(utterance)
+class Transitioner:
+    def __init__(self, data_elements, restaurant_info):
+        self.data_elements = data_elements
+        self.matcher = PatternAndMatch(restaurant_info)
+
+    def transition(self, current_state, utterance):
+        system_sentence = None
+        # No matter the type of state, we will determine the next state here.
+        if current_state.state_type == "SYSTEM":
+            # Here we also generate a system response.
+            system_sentence = current_state.system_sentence()
+            next_state = current_state.determine_next_state()
+        elif current_state.state_type == "USER":
+            # here we process user responses.
+            speech_act = self.utterance_to_speech_act(utterance)
+            current_state.process_user_act(speech_act)
+            next_state = current_state.determine_next_state()
+        elif current_state.state_type == "EVAL":
+            next_state = current_state.determine_next_state()
+        else:
+            raise NotImplementedError()
+        return next_state, system_sentence
+
+    def utterance_to_speech_act(self, utterance):
+        # Classify the user input with the SGD classifier from part 1a.
+        vector = self.data_elements.vectorizer.transform([utterance])
+        predicted = sto_gr_des(self.data_elements, vector)[0]
+        if predicted == "inform":
+            # Include the found parameters for the 'inform' act.
+            preferences = self.matcher.patterns(utterance)
+            keyvaluepairs = [f"{cat}={pref}" for cat, pref in preferences.items() if pref is not None]
+            return SpeechAct("inform(" + ",".join(keyvaluepairs) + ")")
+        # For all other acts, don't include any parameters (for requests/reqalts this is yet to be developed).
+        return SpeechAct(f"{predicted}()")
 
 
-def transition(current_state, utterance):
-    system_sentence = None
-    if current_state.state_type == "SYSTEM":
-        system_sentence = current_state.system_sentence()
-        next_state = current_state.determine_next_state()
-    elif current_state.state_type == "USER":
-        speech_act = utterance_to_speech_act(utterance)
-        current_state.process_user_act(speech_act)
-        next_state = current_state.determine_next_state()
-    elif current_state.state_type == "EVAL":
-        next_state = current_state.determine_next_state()
-    else:
-        raise NotImplementedError()
-    return next_state, system_sentence
-
-
-def chat(restaurant_info):
+def chat(data_elements, restaurant_info):
+    transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
     while state is not None:
@@ -478,17 +515,16 @@ def chat(restaurant_info):
         if state.state_type == "USER":
             utterance = input("").lower()
             print(f"USER: {utterance}")
-        state, sentence = transition(state, utterance)
+        state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
             print(f"SYSTEM: {sentence}")
     print("CHAT TERMINATED")
 
 
 def main():
-    dialog_data = DialogData("all_dialogs.txt")
+    data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info.csv")
-    # dialog_history = DialogHistory(restaurant_info)
-    chat(restaurant_info)
+    chat(data_elements, restaurant_info)
 
 
 if __name__ == "__main__":

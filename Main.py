@@ -4,6 +4,7 @@ from part_1b import *
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
     data_elements = DataElements("dialog_acts.dat")
+    restaurant_info = RestaurantInfo("restaurant_info.csv")
     while True:
         print("Enter")
         print("0 for exit")
@@ -47,10 +48,11 @@ def main():
             comparison_evaluation(data_elements)
             break  # break out of loop to execute the plot.
         elif command == "d":
-            dialogue_state = DialogueState()
-            dialogue_state.current_message()
-            user_text = input()
-            dialogue(data_elements, dialogue_state, user_text)
+            # dialogue_state = DialogueState()
+            # dialogue_state.current_message()
+            # user_text = input()
+            # dialogue(data_elements, dialogue_state, user_text)
+            chat(data_elements, restaurant_info)
         else:
             break
             
