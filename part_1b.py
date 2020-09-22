@@ -521,6 +521,7 @@ def chat(data_elements, restaurant_info):
     print("CHAT TERMINATED")
 
 
+# load dialog_acts and restaurant_info, and begin chat with user.
 def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info.csv")
