@@ -574,13 +574,6 @@ class DialogueState:  # has dialogue state
 					match_dict["correct_word"] = element
 					if lv_distance < 3: print(word + " changed into " + element)  # debug that prints the word changes
 		if match_dict["lv_distance"] < 3:
-			# i set this to less than 3, because more was giving me problems, with 3 this is what happened:
-			'''
-			for changed into world
-			food changed into world
-			for changed into world
-			food changed into world
-			'''
 			return match_dict
 		return False
 
