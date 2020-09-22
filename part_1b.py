@@ -58,7 +58,11 @@ class PatternAndMatch:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
         self.preference_values = {"food": [], "area": [], "pricerange": []}
-
+        
+        # Todo: @Hugo: here are the three points from Marijn notes on Teams that you can implement in this class:
+        # - this will also allow to refactor the triple if in for restaurant in self.restaurant_info.restaurants:
+        # - maybe make the regexes a bit smarter (combine serves/serving etc.)
+        # - or remove the pattern matching here altogether (unless you like it)
         for restaurant in self.restaurant_info.restaurants:
             if restaurant.items["food"] not in self.preference_values["food"]:
                 self.preference_values["food"].append(restaurant.items["food"])
@@ -134,69 +138,52 @@ class DialogState:
     # Here we define all the the different states of our system, corresponding to the flowchart as seen in the
     # report. Hierarchically it is structed like this:
     # BaseState:
-    #     SystemState: (These states are were the system generates a sentence)
+    #     state_type == SYSTEM: (Here the system generates a sentence -> must override generate_sentence())
     #         Welcome
     #         ReportUnavailability
     #         ....
-    #     UserState: (These states are were the user input is being handled)
+    #     state_type == USER: (User input is being handled -> must override process_user_act())
     #         ExpressPreference
     #         ....
-    #     EvalState: (These states are were conditions are being checked)
+    #     state_type == EVAL: (These states are where conditions are being checked)
     #         AllPreferencesKnown
     #         ....
     # In every state we can calculate the next state (until the flowchart is exhausted).
     class BaseState:
         def __init__(self, state_type, state, history):
+            assert(state_type in ("SYSTEM", "USER", "EVAL"))  # only 3 types of possible states (see diagram).
             self.state_type = state_type
             self.state = state
             self.history = history
     
-        def determine_next_state(self):
-            raise NotImplementedError()
+        def process_user_act(self, _):
+            if self.state_type == "USER":
+                raise NotImplementedError()  # In case of state_type = USER, this method must be overridden.
         
-    class SystemState(BaseState):
-        def __init__(self, state, history):
-            super().__init__("SYSTEM", state, history)
-    
-        def system_sentence(self):
-            raise NotImplementedError()
-    
+        def generate_sentence(self):
+            if self.state_type == "SYSTEM":
+                raise NotImplementedError()  # In case of state_type = SYSTEM, this method must be overridden.
+            
         def determine_next_state(self):
-            raise NotImplementedError()
-
-    class UserState(BaseState):
-        def __init__(self, state, history):
-            super().__init__("USER", state, history)
+            raise NotImplementedError()  # This method must always be overridden.
     
-        def process_user_act(self, speech_act):
-            raise NotImplementedError()
-    
-        def determine_next_state(self):
-            raise NotImplementedError()
-
-    class EvalState(BaseState):
-        def __init__(self, state, history):
-            super().__init__("EVAL", state, history)
-        
-        def determine_next_state(self):
-            raise NotImplementedError()
-        
-    class Welcome(SystemState):
+    # Next we define the state_type == SYSTEM states.
+    class Welcome(BaseState):
         def __init__(self, history):
-            super().__init__("Welcome", history)
+            super().__init__("SYSTEM", "Welcome", history)
         
-        def system_sentence(self):
+        def generate_sentence(self):
             return "Hi, welcome to the group 10 dialogue system. You can ask for restaurants by area , pricerange " \
                    "or food type . How may I help you?"
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
                 
-    class ReportUnavailability(SystemState):
+    class ReportUnavailability(BaseState):
         def __init__(self, history):
-            super().__init__("ReportUnavailability", history)
+            super().__init__("SYSTEM", "ReportUnavailability", history)
         
-        def system_sentence(self):
+        def generate_sentence(self):
             specs = []
             if self.history.preferences["area"] not in (None, "dontcare"):
                 specs.append(f"in the {self.history.preferences['area']} part of town")
@@ -209,14 +196,14 @@ class DialogState:
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
     
-    class AskPreference(SystemState):
+    class AskPreference(BaseState):
         def __init__(self, history):
-            super().__init__("AskPreference", history)
+            super().__init__("SYSTEM", "AskPreference", history)
             # choose a random preference that is not yet known to ask the user.
             open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
             self.history.last_preference = rnd.choice(open_preferences)
         
-        def system_sentence(self):
+        def generate_sentence(self):
             if self.history.last_preference == "pricerange":
                 return "Would you like something in the cheap, moderate, or expensive price range?"
             elif self.history.last_preference == "area":
@@ -229,13 +216,13 @@ class DialogState:
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
     
-    class SuggestOption(SystemState):
+    class SuggestOption(BaseState):
         def __init__(self, history):
-            super().__init__("SuggestOption", history)
+            super().__init__("SYSTEM", "SuggestOption", history)
             # choose a random option from the restaurants satisfying the user's conditions.
             self.history.last_suggestion = rnd.choice(self.history.restaurants())
         
-        def system_sentence(self):
+        def generate_sentence(self):
             specs = []
             if self.history.preferences["area"] not in (None, "dontcare"):
                 specs.append(f"in the {self.history.last_suggestion.items['area']} part of town")
@@ -250,11 +237,11 @@ class DialogState:
         def determine_next_state(self):
             return DialogState.Reply(self.history)
     
-    class ProvideDetails(SystemState):
+    class ProvideDetails(BaseState):
         def __init__(self, history):
-            super().__init__("ProvideDetails", history)
+            super().__init__("SYSTEM", "ProvideDetails", history)
         
-        def system_sentence(self):
+        def generate_sentence(self):
             specs = []
             suggestion = self.history.last_suggestion
             requests = self.history.get_requests()
@@ -263,24 +250,25 @@ class DialogState:
             for request in requests:
                 specs.append(f"the {request} is: {suggestion.items[request]}")
             specs[-1] = "and " + specs[-1]
-            return f"{suggestion.restaurantname} is a nice restaurant, {', '.join(specs)}."
+            return f"{suggestion.items['restaurantname']} is a nice restaurant, {', '.join(specs)}."
         
         def determine_next_state(self):
             return DialogState.Reply(self.history)
     
-    class Clarify(SystemState):
+    class Clarify(BaseState):
         def __init__(self, history):
-            super().__init__("Clarify", history)
+            super().__init__("SYSTEM", "Clarify", history)
 
-        def system_sentence(self):
+        def generate_sentence(self):
             return "Sorry, I didn't get that."
 
         def determine_next_state(self):
             return DialogState.Reply(self.history)
 
-    class ExpressPreference(UserState):
+    # Next we define the state_type == USER states.
+    class ExpressPreference(BaseState):
         def __init__(self, history):
-            super().__init__("ExpressPreference", history)
+            super().__init__("USER", "ExpressPreference", history)
 
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
@@ -293,9 +281,9 @@ class DialogState:
         def determine_next_state(self):
             return DialogState.AllPreferencesKnown(self.history)
     
-    class Reply(UserState):
+    class Reply(BaseState):
         def __init__(self, history):
-            super().__init__("Reply", history)
+            super().__init__("USER", "Reply", history)
 
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
@@ -313,20 +301,21 @@ class DialogState:
 
         def determine_next_state(self):
             return DialogState.DetailsAsked(self.history)
-
-    class AllPreferencesKnown(EvalState):
-        def __init__(self, history):
-            super().__init__("AllPreferencesKnown", history)
     
+    # Next we define the state_type == EVAL states.
+    class AllPreferencesKnown(BaseState):
+        def __init__(self, history):
+            super().__init__("EVAL", "AllPreferencesKnown", history)
+        
         def determine_next_state(self):
             if self.history.preferences_filled():
                 return DialogState.SuggestionAvailable(self.history)
             else:
                 return DialogState.AskPreference(self.history)
 
-    class SuggestionAvailable(EvalState):
+    class SuggestionAvailable(BaseState):
         def __init__(self, history):
-            super().__init__("SuggestionAvailable", history)
+            super().__init__("EVAL", "SuggestionAvailable", history)
     
         def determine_next_state(self):
             if len(self.history.restaurants()) > 0:
@@ -334,9 +323,9 @@ class DialogState:
             else:
                 return DialogState.ReportUnavailability(self.history)
 
-    class DetailsAsked(EvalState):
+    class DetailsAsked(BaseState):
         def __init__(self, history):
-            super().__init__("DetailsAsked", history)
+            super().__init__("EVAL", "DetailsAsked", history)
     
         def determine_next_state(self):
             if self.history.speech_acts[-1].act == "request":
@@ -344,9 +333,9 @@ class DialogState:
             else:
                 return DialogState.AlternativeAsked(self.history)
 
-    class AlternativeAsked(EvalState):
+    class AlternativeAsked(BaseState):
         def __init__(self, history):
-            super().__init__("AlternativeAsked", history)
+            super().__init__("EVAL", "AlternativeAsked", history)
     
         def determine_next_state(self):
             if self.history.speech_acts[-1].act == "reqalts":
@@ -354,9 +343,9 @@ class DialogState:
             else:
                 return DialogState.ThanksBye(self.history)
 
-    class ThanksBye(EvalState):
+    class ThanksBye(BaseState):
         def __init__(self, history):
-            super().__init__("ThanksBye", history)
+            super().__init__("EVAL", "ThanksBye", history)
     
         def determine_next_state(self):
             if self.history.speech_acts[-1].act in ("thankyou", "bye"):
@@ -372,20 +361,15 @@ class Transitioner:
 
     def transition(self, current_state, utterance):
         system_sentence = None
-        # No matter the type of state, we will determine the next state here.
         if current_state.state_type == "SYSTEM":
-            # Here we also generate a system response.
-            system_sentence = current_state.system_sentence()
-            next_state = current_state.determine_next_state()
+            # Here we generate a system response.
+            system_sentence = current_state.generate_sentence()
         elif current_state.state_type == "USER":
-            # here we process user responses.
+            # Here we process user responses.
             speech_act = self.utterance_to_speech_act(utterance)
             current_state.process_user_act(speech_act)
-            next_state = current_state.determine_next_state()
-        elif current_state.state_type == "EVAL":
-            next_state = current_state.determine_next_state()
-        else:
-            raise NotImplementedError()
+        # No matter the type of state, we determine the next state.
+        next_state = current_state.determine_next_state()
         return next_state, system_sentence
 
     def utterance_to_speech_act(self, utterance):
@@ -400,7 +384,10 @@ class Transitioner:
         return SpeechAct(predicted)
 
 
-def chat(data_elements, restaurant_info):
+# load dialog_acts and restaurant_info, and begin chat with user.
+def main():
+    data_elements = DataElements("dialog_acts.dat")
+    restaurant_info = RestaurantInfo("restaurant_info.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
@@ -413,13 +400,6 @@ def chat(data_elements, restaurant_info):
         if sentence is not None:
             print(f"SYSTEM: {sentence}")
     print("CHAT TERMINATED")
-
-
-# load dialog_acts and restaurant_info, and begin chat with user.
-def main():
-    data_elements = DataElements("dialog_acts.dat")
-    restaurant_info = RestaurantInfo("restaurant_info.csv")
-    chat(data_elements, restaurant_info)
 
 
 if __name__ == "__main__":
