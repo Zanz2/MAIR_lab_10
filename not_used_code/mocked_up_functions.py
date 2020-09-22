@@ -538,10 +538,20 @@ class DialogueState:  # has dialogue state
 			# example fast food, junk food, organic food etc, or maybe just use keyword matching
 		return False
 
-	def check_levenshtein(self, word):  # similar to the above function, but we run this after
+	def check_levenshtein(self, word, type = False):
+		# allowed type : "food_type" "price_range" or "location"
+		# type is food location or price range, each of these have their own minimum word length
+		# based on the keyword matching words, for example if we misspell west as est, we still spellcheck est
+		# if we would misspell it as st then we do not consider that
+
+		# for general use the type is just falls, for correcting specific food types then
+		# the type is supplied and each type has its own minimum length (see ifs below)
 		blacklist = ["west", "would", "want", "world", "a", "part", "can", "what"]
 		# words that get confused and changed easily frequently belong in the blacklist
-		if word in blacklist:
+		if word in blacklist or (
+				type is False and len(word) < 3):  # general words are only allowed if they are length 3 and up
+			return False
+		if (type == "food_type" and len(word) < 2) or (type == "price_range" and len(word) < 3) or (type == "location" and len(word) < 2):
 			return False
 		match_dict = {
 			"correct_word": False,
@@ -549,8 +559,12 @@ class DialogueState:  # has dialogue state
 			"index": -1,
 			"lv_distance": 4  # max allowed distance, if its 4 at the end we return false
 		}
+
 		loop_array = ["food_type", "price_range", "location"]
+
 		for type_index, value_type in enumerate(loop_array):
+			if type is not False and value_type != type:
+				continue
 			for element in self.preference_dict[value_type]:
 				lv_distance = Levenshtein.distance(element, word)
 				if lv_distance < match_dict["lv_distance"]:
@@ -558,7 +572,7 @@ class DialogueState:  # has dialogue state
 					match_dict["type"] = value_type
 					match_dict["index"] = type_index
 					match_dict["correct_word"] = element
-			# if lv_distance < 3: print(word+" changed into "+element) # debug that prints the word changes
+					if lv_distance < 3: print(word + " changed into " + element)  # debug that prints the word changes
 		if match_dict["lv_distance"] < 3:
 			# i set this to less than 3, because more was giving me problems, with 3 this is what happened:
 			'''
@@ -573,7 +587,7 @@ class DialogueState:  # has dialogue state
 
 # load dialog_acts, show options of interaction and display to user, process user request
 def main():
-	data_elements = DataElements("dialog_acts.dat")
+	data_elements = DataElements("../dialog_acts.dat")
 	while True:
 		print("Enter")
 		print("0 for exit")
@@ -619,6 +633,8 @@ def main():
 		elif command == "d":
 			dialogue_state = DialogueState()
 			dialogue_state.current_message()
+
+			dialogue_state.check_levenshtein("word", "location")
 			while True:
 				user_text = input()
 				dialogue(data_elements, dialogue_state, user_text)
