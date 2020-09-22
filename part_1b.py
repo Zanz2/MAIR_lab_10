@@ -98,6 +98,38 @@ class PatternAndMatch:
         return pref_dict
 
 
+class SystemUtterance:
+    TEMPLATES = {
+        "STATEMENT": {
+            "area": "it is in the {0} part of town",
+            "pricerange": "the prices are {0}",
+            "food": "they serve {0} food"},
+        "DESCRIPTION": {
+            "area": "in the {0} part of town",
+            "pricerange": "in the {0} pricerange",
+            "food": "which serve {0} food"},
+        "QUESTION": {
+            "area": "What part of town do you have in mind?",
+            "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
+            "food": "What kind of food would you like?"}}
+    
+    @classmethod
+    def generate_combination(cls, preferences, utterance_type):
+        assert(utterance_type in ("STATEMENT", "DESCRIPTION"))
+        sub_sentences = []
+        for cat, pref in preferences.items():
+            if cat in ("pricerange", "area", "food"):
+                if pref not in (None, "dontcare"):
+                    sub_sentences.append(cls.TEMPLATES[utterance_type][cat].format(pref))
+        if len(sub_sentences) <= 1:
+            return "".join(sub_sentences)
+        return ", ".join(sub_sentences[:-2] + [f"{sub_sentences[-2]} and {sub_sentences[-1]}"])
+    
+    @classmethod
+    def ask_information(cls, category):
+        return cls.TEMPLATES["QUESTION"][category]
+
+
 class DialogHistory:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
@@ -184,14 +216,8 @@ class DialogState:
             super().__init__("SYSTEM", "ReportUnavailability", history)
         
         def generate_sentence(self):
-            specs = []
-            if self.history.preferences["area"] not in (None, "dontcare"):
-                specs.append(f"in the {self.history.preferences['area']} part of town")
-            if self.history.preferences["food"] not in (None, "dontcare"):
-                specs.append(f"serving {self.history.preferences['food']} food")
-            if self.history.preferences["pricerange"] not in (None, "dontcare"):
-                specs.append(f"in the {self.history.preferences['pricerange']} pricerange")
-            return f"I'm sorry, there are no restaurants {', '.join(specs)}. Please change one of your preferences."
+            sentence = SystemUtterance.generate_combination(self.history.preferences, "DESCRIPTION")
+            return f"I'm sorry, there are no restaurants that are {sentence}. Please change one of your preferences."
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
@@ -204,14 +230,7 @@ class DialogState:
             self.history.last_preference = rnd.choice(open_preferences)
         
         def generate_sentence(self):
-            if self.history.last_preference == "pricerange":
-                return "Would you like something in the cheap, moderate, or expensive price range?"
-            elif self.history.last_preference == "area":
-                return "What part of town do you have in mind?"
-            elif self.history.last_preference == "food":
-                return "What kind of food would you like?"
-            else:
-                raise NotImplementedError()
+            return SystemUtterance.ask_information(self.history.last_preference)
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
@@ -223,16 +242,8 @@ class DialogState:
             self.history.last_suggestion = rnd.choice(self.history.restaurants())
         
         def generate_sentence(self):
-            specs = []
-            if self.history.preferences["area"] not in (None, "dontcare"):
-                specs.append(f"in the {self.history.last_suggestion.items['area']} part of town")
-            if self.history.preferences["pricerange"] not in (None, "dontcare"):
-                specs.append(f"the prices are {self.history.last_suggestion.items['pricerange']}")
-            if self.history.preferences["food"] not in (None, "dontcare"):
-                specs.append(f"they serve {self.history.last_suggestion.items['food']} food")
-            if len(specs) > 0:
-                specs[-1] = "and " + specs[-1]
-            return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant {', '.join(specs)}"
+            sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
+            return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant: {sentence}."
         
         def determine_next_state(self):
             return DialogState.Reply(self.history)
