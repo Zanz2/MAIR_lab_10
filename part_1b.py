@@ -22,7 +22,7 @@ class SpeechAct:
         return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
 
 
-# here we load the restaurant info and create a list with the restaurant data (including name and pricerange etc)
+# here we load the restaurant info and create a list with the restaurant data (including food, area, pricerange etc.)
 class RestaurantInfo:
     def __init__(self, filename):
         self.filename = filename
@@ -30,51 +30,27 @@ class RestaurantInfo:
 
     def __parse_data(self):
         restaurants = []
-        with open(self.filename) as f:
-            content = f.readlines()
-            for i, line in enumerate(content):
-                # read the data into a list with an element for each line of text (and lowercase it).
-                if i > 0:
-                    line = line.rstrip("\n").lower()
-                    columns = [c.strip('"') for c in line.split(",")]
-                    name, pricerange, area, food, phone, addr, postcode = columns
-                    restaurants.append(Restaurant(name, pricerange, area, food, phone, addr, postcode))
+        csv_data = pd.read_csv(self.filename, header=0, na_filter=False)
+        for row in csv_data.values:
+            restaurantname, pricerange, area, food, phone, addr, postcode = row
+            restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode))
         return restaurants
 
 
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
 class Restaurant:
-    def __init__(self, name, pricerange, area, food, phone, addr, postcode):
-        self.name = name
-        self.pricerange = pricerange
-        self.area = area
-        self.food = food
-        self.phone = phone
-        self.addr = addr
-        self.postcode = postcode
+    def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode):
+        self.items = {
+            "restaurantname": restaurantname,
+            "pricerange": pricerange,
+            "area": area,
+            "food": food,
+            "phone": phone,
+            "addr": addr,
+            "postcode": postcode}
 
     def __str__(self):
-        return f"{{'name': '{self.name}', 'pricerange': '{self.pricerange}', 'area': '{self.area}', 'food': " \
-               f"'{self.food}', 'phone': '{self.phone}', 'addr': '{self.addr}', 'postcode': '{self.postcode}'}}"
-    
-    def get(self, attribute):
-        if attribute == "name":
-            return self.name
-        elif attribute == "pricerange":
-            return self.pricerange
-        elif attribute == "area":
-            return self.area
-        elif attribute == "food":
-            return self.food
-        elif attribute == "phone":
-            return self.phone
-        elif attribute == "addr":
-            return self.addr
-        elif attribute == "postcode":
-            return self.postcode
-        else:
-            print(f"Unknown attribute for Restaurant: {attribute}")
-            raise NotImplementedError()
+        return str(self.items)
 
 
 # keyword matching + recognizing patterns, still misses levensthein distance
@@ -84,12 +60,12 @@ class PatternAndMatch:
         self.preference_values = {"food": [], "area": [], "pricerange": []}
 
         for restaurant in self.restaurant_info.restaurants:
-            if restaurant.food not in self.preference_values["food"]:
-                self.preference_values["food"].append(restaurant.food)
-            if restaurant.area not in self.preference_values["area"]:
-                self.preference_values["area"].append(restaurant.area)
-            if restaurant.pricerange not in self.preference_values["pricerange"]:
-                self.preference_values["pricerange"].append(restaurant.pricerange)
+            if restaurant.items["food"] not in self.preference_values["food"]:
+                self.preference_values["food"].append(restaurant.items["food"])
+            if restaurant.items["area"] not in self.preference_values["area"]:
+                self.preference_values["area"].append(restaurant.items["area"])
+            if restaurant.items["pricerange"] not in self.preference_values["pricerange"]:
+                self.preference_values["pricerange"].append(restaurant.items["pricerange"])
 
     def patterns(self, user_utterance):
         user_text = user_utterance
@@ -149,7 +125,7 @@ class DialogHistory:
         selection = [r for r in self.restaurant_info.restaurants]
         for category, preference in self.preferences.items():
             if preference not in (None, "dontcare"):
-                selection = [r for r in selection if r.get(category) == preference]
+                selection = [r for r in selection if r.items[category] == preference]
         selection = [r for r in selection if r not in self.declined]
         return selection
 
@@ -262,14 +238,14 @@ class DialogState:
         def system_sentence(self):
             specs = []
             if self.history.preferences["area"] not in (None, "dontcare"):
-                specs.append(f"in the {self.history.last_suggestion.area} part of town")
+                specs.append(f"in the {self.history.last_suggestion.items['area']} part of town")
             if self.history.preferences["pricerange"] not in (None, "dontcare"):
-                specs.append(f"the prices are {self.history.last_suggestion.pricerange}")
+                specs.append(f"the prices are {self.history.last_suggestion.items['pricerange']}")
             if self.history.preferences["food"] not in (None, "dontcare"):
-                specs.append(f"they serve {self.history.last_suggestion.food} food")
+                specs.append(f"they serve {self.history.last_suggestion.items['food']} food")
             if len(specs) > 0:
                 specs[-1] = "and " + specs[-1]
-            return f"{self.history.last_suggestion.name} is a nice restaurant {', '.join(specs)}"
+            return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant {', '.join(specs)}"
         
         def determine_next_state(self):
             return DialogState.Reply(self.history)
@@ -285,9 +261,9 @@ class DialogState:
             if len(requests) == 0:  # this is temporary, until we have a matcher for 'request' acts.
                 requests = ["addr", "postcode", "phone"]
             for request in requests:
-                specs.append(f"the {request} is: {suggestion.get(request)}")
+                specs.append(f"the {request} is: {suggestion.items[request]}")
             specs[-1] = "and " + specs[-1]
-            return f"{suggestion.name} is a nice restaurant, {', '.join(specs)}."
+            return f"{suggestion.restaurantname} is a nice restaurant, {', '.join(specs)}."
         
         def determine_next_state(self):
             return DialogState.Reply(self.history)
@@ -444,7 +420,7 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info.csv")
     chat(data_elements, restaurant_info)
-    
+
 
 if __name__ == "__main__":
     main()
