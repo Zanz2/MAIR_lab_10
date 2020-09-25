@@ -53,16 +53,20 @@ class Restaurant:
         return str(self.items)
 
 
-# keyword matching + recognizing patterns, still misses levensthein distance
-class PatternAndMatch:
+class KeywordMatch:
+    # keyword matching class
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
-        self.preference_values = {"food": [], "area": [], "pricerange": []}
+        self.preference_values = {
+            "food": [],
+            "area": [],
+            "pricerange": [],
+            "phone": ["phone number", "phone", "phonenumber"],
+            "addr": ["address"],
+            "postcode": ["postcode", "post"]
+        }
         
-        # Todo: @Hugo: here are the three points from Marijn notes on Teams that you can implement in this class:
-        # - this will also allow to refactor the triple if in for restaurant in self.restaurant_info.restaurants:
-        # - maybe make the regexes a bit smarter (combine serves/serving etc.)
-        # - or remove the pattern matching here altogether (unless you like it)
+        #only the code below might still need a fix (to get rid of the if-statements)
         for restaurant in self.restaurant_info.restaurants:
             if restaurant.items["food"] not in self.preference_values["food"]:
                 self.preference_values["food"].append(restaurant.items["food"])
@@ -71,31 +75,95 @@ class PatternAndMatch:
             if restaurant.items["pricerange"] not in self.preference_values["pricerange"]:
                 self.preference_values["pricerange"].append(restaurant.items["pricerange"])
 
-    def patterns(self, user_utterance):
-        user_text = user_utterance
+    def check_levenshtein(self, word, type = False):
+        # allowed type : "food_type", "price_range", "location", "phone", "address" and "postcode"
+        # different types have their own minimum word length
+        # based on the keyword matching words, for example if we misspell west as est, we still spellcheck est
+        # if we would misspell it as st then we do not consider that
+        # for general use the type is just falls, for correcting specific food types then
+        # the type is supplied and each type has its own minimum length (see ifs below)
+        blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
+        # words that get confused and changed easily frequently belong in the blacklist
+        w_len = len(word)
+        if word in blacklist or (type is False and w_len < 3):  # general words are only allowed if they are length 3 and up
+            return False
+        if (
+                type == "food" and w_len < 2) or (
+                type == "pricerange" and w_len < 3) or (
+                type == "area" and w_len < 2) or (
+                type == "phone" and w_len < 3) or (
+                type == "addr" and w_len < 4) or (
+                type == "postcode" and w_len < 2
+        ):
+            return False
+        match_dict = {
+            "correct_word": False,
+            "type": False,
+            "index": -1,
+            "lv_distance": 4  # max allowed distance, if its 4 at the end we return false
+        }
+        loop_array = ["food", "pricerange", "area","phone", "addr", "postcode"]
+        for type_index, value_type in enumerate(loop_array):
+            if type is not False and value_type != type:
+                continue
+            for element in self.preference_values[value_type]:
+                lv_distance = Levenshtein.distance(element, word)
+                if lv_distance < match_dict["lv_distance"]:
+                    match_dict["lv_distance"] = lv_distance
+                    match_dict["type"] = value_type
+                    match_dict["index"] = type_index
+                    match_dict["correct_word"] = element
+                    #if lv_distance < 3: print(word + " changed into " + element)  # debug that prints the word changes
+        if match_dict["lv_distance"] < 3:
+            return match_dict["correct_word"]
+        return False
+
+    def keyword_match_pref(self, user_utterance):
+        # this method will check whether the user mentions a word that matches with a word from the csv file
+        # it also checks words that are misspelled with help of the check_levenshtein method
+        # it returns a dictionary with preferences for foodtype, area and pricerange
+        
         words = user_utterance.split(" ")
         pref_dict = {"food": None, "area": None, "pricerange": None}
-        # it first looks for patterns in the utterance and fills in the value for food or area if one of these patterns is discovered
-        if re.findall(r' serves (.*?) food', user_text):
-            pref_dict["food"] = (re.findall(r' serves (.*?) food', user_text))[0]
-        if re.findall(r' serving (.*?) food', user_text):
-            pref_dict["food"] = (re.findall(r' serving (.*?) food', user_text))[0]
-        if re.findall(r' with (.*?) food', user_text):
-            pref_dict["food"] = (re.findall(r' with (.*?) food', user_text))[0]
-        if re.findall(r' in the (.*?) ', user_text):
-            pref_dict["area"] = (re.findall(r' in the (.*?) ', user_text))[0]
-        # then it checks per word if it falls in one of the categories
-        # if one of the categories already has a value attributed due to a pattern, then this category will not be considered
+
         for word in words:
             if pref_dict["food"] is None:
                 if word in self.preference_values["food"]:
                     pref_dict["food"] = word
+                elif self.check_levenshtein(word) in self.preference_values["food"]:
+                    pref_dict["food"] = self.check_levenshtein(word)
             if pref_dict["area"] is None:
                 if word in self.preference_values["area"]:
                     pref_dict["area"] = word
-            if word in self.preference_values["pricerange"]:
-                pref_dict["pricerange"] = word
+                elif self.check_levenshtein(word) in self.preference_values["area"]:
+                    pref_dict["area"] = self.check_levenshtein(word)
+            if pref_dict["pricerange"] is None:
+                if word in self.preference_values["pricerange"]:
+                    pref_dict["pricerange"] = word
+                elif self.check_levenshtein(word) in self.preference_values["pricerange"]:
+                    pref_dict["pricerange"] = self.check_levenshtein(word)
         return pref_dict
+
+    def keyword_match_info(self, user_utterance):
+        # this method checks whether one of the words is mentioned which indicates a request for information about a certain restaurant
+        # it will be a dictionary with types mapped to a Boolean (True/ False)
+        # when at least one entry is True, it will be able for the dialog manager to give the user the desired information about the restaurant
+        words = user_utterance.split(" ")
+        pref_info = {"phone": False, "addr": False, "postcode": False}
+        for word in words:
+            if word == "phone" or word == "phonenumber":
+                pref_info["phone"] = True
+            if self.check_levenshtein(word) == "phone" or self.check_levenshtein(word) == "phonenumber":
+                pref_info["phone"] = True
+            if word == "address":
+                pref_info["addr"] = True
+            if self.check_levenshtein(word) == "address":
+                pref_info["addr"] = True
+            if word == "postcode" or word == "post": 
+                pref_info["postcode"] = True
+            if self.check_levenshtein(word) == "postcode" or self.check_levenshtein(word) == "post":
+                pref_info["postcode"] = True
+        return pref_info
 
 
 class SystemUtterance:
@@ -368,7 +436,7 @@ class DialogState:
 class Transitioner:
     def __init__(self, data_elements, restaurant_info):
         self.data_elements = data_elements
-        self.matcher = PatternAndMatch(restaurant_info)
+        self.matcher = KeywordMatch(restaurant_info)
 
     def transition(self, current_state, utterance):
         system_sentence = None
@@ -389,7 +457,7 @@ class Transitioner:
         predicted = sto_gr_des(self.data_elements, vector)[0]
         if predicted == "inform":
             # Include the found parameters for the 'inform' act.
-            preferences = self.matcher.patterns(utterance)
+            preferences = self.matcher.keyword_match_pref(utterance)
             return SpeechAct(predicted, {cat: pref for cat, pref in preferences.items() if pref is not None})
         # For all other acts, don't include any parameters (for requests/reqalts this is yet to be developed).
         return SpeechAct(predicted)
