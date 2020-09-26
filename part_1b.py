@@ -66,14 +66,11 @@ class KeywordMatch:
             "postcode": ["postcode", "post"]
         }
         
-        #only the code below might still need a fix (to get rid of the if-statements)
+        # check for the restaurants whether possible preferences have been added, if not add
         for restaurant in self.restaurant_info.restaurants:
-            if restaurant.items["food"] not in self.preference_values["food"]:
-                self.preference_values["food"].append(restaurant.items["food"])
-            if restaurant.items["area"] not in self.preference_values["area"]:
-                self.preference_values["area"].append(restaurant.items["area"])
-            if restaurant.items["pricerange"] not in self.preference_values["pricerange"]:
-                self.preference_values["pricerange"].append(restaurant.items["pricerange"])
+            for preference in ["food", "area", "pricerange"]:
+                if restaurant.items[preference] not in self.preference_values[preference]:
+                    self.preference_values[preference].append(restaurant.items[preference])
 
     def check_levenshtein(self, word, type = False):
         # allowed type : "food_type", "price_range", "location", "phone", "address" and "postcode"
