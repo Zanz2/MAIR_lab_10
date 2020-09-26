@@ -176,6 +176,10 @@ class SystemUtterance:
             "area": "in the {0} part of town",
             "pricerange": "in the {0} pricerange",
             "food": "which serve {0} food"},
+        "CONFIRMATION": {
+            "area": "{0} part",
+            "pricerange": "{0} prices",
+            "food": "{0} food"},
         "QUESTION": {
             "area": "What part of town do you have in mind?",
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
@@ -183,7 +187,7 @@ class SystemUtterance:
     
     @classmethod
     def generate_combination(cls, preferences, utterance_type):
-        assert(utterance_type in ("STATEMENT", "DESCRIPTION"))
+        assert(utterance_type in ("STATEMENT", "DESCRIPTION", "CONFIRMATION"))
         sub_sentences = []
         for cat, pref in preferences.items():
             if cat in ("pricerange", "area", "food"):
@@ -207,7 +211,7 @@ class DialogHistory:
         self.terminate = False
         self.speech_acts = []
         self.last_suggestion = None
-        self.last_preference = None
+        self.last_inquiry = None
     
     def decline(self, restaurant):
         self.declined.append(restaurant)
@@ -273,8 +277,8 @@ class DialogState:
             super().__init__("SYSTEM", "Welcome", history)
         
         def generate_sentence(self):
-            return "Hi, welcome to the group 10 dialogue system. You can ask for restaurants by area , pricerange " \
-                   "or food type . How may I help you?"
+            return "Hi, welcome to the group 10 dialog system. You can ask for restaurants by area, pricerange " \
+                   "or food type. How may I help you?"
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
@@ -295,10 +299,14 @@ class DialogState:
             super().__init__("SYSTEM", "AskPreference", history)
             # choose a random preference that is not yet known to ask the user.
             open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
-            self.history.last_preference = rnd.choice(open_preferences)
+            self.history.last_inquiry = rnd.choice(open_preferences)
         
         def generate_sentence(self):
-            return SystemUtterance.ask_information(self.history.last_preference)
+            confirm = ""
+            if len(self.history.speech_acts[-1].parameters) > 0:
+                confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
+                confirm = f"Ok, {confirm}. "
+            return f"{confirm}{SystemUtterance.ask_information(self.history.last_inquiry)}"
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
@@ -314,7 +322,7 @@ class DialogState:
             return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant: {sentence}."
         
         def determine_next_state(self):
-            return DialogState.Reply(self.history)
+            return DialogState.ConfirmNegateOrInquire(self.history)
     
     class ProvideDetails(BaseState):
         def __init__(self, history):
@@ -332,17 +340,17 @@ class DialogState:
             return f"{suggestion.items['restaurantname']} is a nice restaurant, {', '.join(specs)}."
         
         def determine_next_state(self):
-            return DialogState.Reply(self.history)
+            return DialogState.ConfirmNegateOrInquire(self.history)
     
     class Clarify(BaseState):
         def __init__(self, history):
             super().__init__("SYSTEM", "Clarify", history)
 
         def generate_sentence(self):
-            return "Sorry, I didn't get that."
+            return "Sorry, I didn't get that. Could you clarify that?"
 
         def determine_next_state(self):
-            return DialogState.Reply(self.history)
+            return DialogState.ConfirmNegateOrInquire(self.history)
 
     # Next we define the state_type == USER states.
     class ExpressPreference(BaseState):
@@ -356,13 +364,15 @@ class DialogState:
                 for category, preference in speech_act.parameters.items():
                     if category in ("pricerange", "food", "area"):
                         self.history.preferences[category] = preference
+                    elif category == "":
+                        self.history.preferences[self.history.last_inquiry] = preference
 
         def determine_next_state(self):
             return DialogState.AllPreferencesKnown(self.history)
     
-    class Reply(BaseState):
+    class ConfirmNegateOrInquire(BaseState):
         def __init__(self, history):
-            super().__init__("USER", "Reply", history)
+            super().__init__("USER", "ConfirmNegateOrInquire", history)
 
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
@@ -478,7 +488,7 @@ def main():
         state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
             print(f"SYSTEM: {sentence}")
-    print("CHAT TERMINATED")
+    print("SYSTEM: Ok, good bye! Come again!")
 
 
 if __name__ == "__main__":
