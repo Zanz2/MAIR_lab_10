@@ -388,7 +388,7 @@ def dialogue(data, dialogue_state, user_utterance):
 
 
 def lookup_restaurant(dialogue_state):
-	restaurant_data = pd.read_csv('restaurant_info.csv', dtype="str")
+	restaurant_data = pd.read_csv('../restaurant_info.csv', dtype="str")
 	eligible_choices = []
 	pref_array = dialogue_state.user_preference_array_fpl
 	if pref_array[2] == "moderately":
@@ -424,7 +424,7 @@ class DialogueState:  # has dialogue state
 	def __init__(self):
 		self.current_state = State.HELLO
 		self.eligible_restaurants_array = []
-		self.user_preference_array_fpl = [False, False, False]  # keyword array, first index is for food
+		self.user_preference_array_fpl = [False, False, False, False, False, False]  # keyword array, first index is for food
 		# second index is for price range, third index is for location
 		self.preference_dict = {
 			"food_type": [
@@ -449,6 +449,15 @@ class DialogueState:  # has dialogue state
 				"west",
 				"east",
 				"north"
+			],
+			"phone": [
+				"phone number", "phone", "phonenumber"
+			],
+			"addr": [
+				"address"
+			],
+			"postcode": [
+				"postcode"
 			]
 		}
 		self.messages = {
@@ -538,20 +547,27 @@ class DialogueState:  # has dialogue state
 			# example fast food, junk food, organic food etc, or maybe just use keyword matching
 		return False
 
-	def check_levenshtein(self, word, type = False):
+	def check_levenshtein(self, word, type=False):
 		# allowed type : "food_type" "price_range" or "location"
 		# type is food location or price range, each of these have their own minimum word length
 		# based on the keyword matching words, for example if we misspell west as est, we still spellcheck est
 		# if we would misspell it as st then we do not consider that
-
 		# for general use the type is just falls, for correcting specific food types then
 		# the type is supplied and each type has its own minimum length (see ifs below)
-		blacklist = ["west", "would", "want", "world", "a", "part", "can", "what"]
+		blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
 		# words that get confused and changed easily frequently belong in the blacklist
+		w_len = len(word)
 		if word in blacklist or (
-				type is False and len(word) < 3):  # general words are only allowed if they are length 3 and up
+				type is False and w_len < 3):  # general words are only allowed if they are length 3 and up
 			return False
-		if (type == "food_type" and len(word) < 2) or (type == "price_range" and len(word) < 3) or (type == "location" and len(word) < 2):
+		if (
+				type == "food_type" and w_len < 2) or (
+				type == "price_range" and w_len < 3) or (
+				type == "area" and w_len < 2) or (
+				type == "phone" and w_len < 3) or (
+				type == "addr" and w_len < 4) or (
+				type == "postcode" and w_len < 2
+		):
 			return False
 		match_dict = {
 			"correct_word": False,
@@ -559,9 +575,7 @@ class DialogueState:  # has dialogue state
 			"index": -1,
 			"lv_distance": 4  # max allowed distance, if its 4 at the end we return false
 		}
-
-		loop_array = ["food_type", "price_range", "location"]
-
+		loop_array = ["food_type", "price_range", "location", "phone", "addr", "postcode"]
 		for type_index, value_type in enumerate(loop_array):
 			if type is not False and value_type != type:
 				continue
