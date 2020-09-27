@@ -1,6 +1,7 @@
 import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
 import random as rnd
+import re
 
 
 # we define a class of speech acts (for example inform and request) in which we split the label from the parameters
@@ -60,35 +61,37 @@ class KeywordMatch:
         # values are are the unique values from the 'restaurant_info' dataset. For speech_act=request the possible
         # values are synonyms of the word itself.
         self.possible_values = {
-            "inform": {
+            "items": {
                 "food": list(set(r.items["food"] for r in restaurant_info.restaurants)),
                 "area": list(set(r.items["area"] for r in restaurant_info.restaurants)),
                 "pricerange": list(set(r.items["pricerange"] for r in restaurant_info.restaurants))},
-            "request": {
+            "synonyms": {
                 "food": ["food", "cuisine", "foodtype"],
                 "area": ["area", "neighborhood", "region"],
                 "pricerange": ["pricerange", "price", "prices", "pricyness"],
                 "phone": ["phone", "phonenumber", "telephone", "telephonenumber", "number"],
                 "addr": ["addr", "address", "street"],
                 "postcode": ["postcode", "postal", "post", "code"]}}
+        # The dontcare specifier we check with regular expressions, since they mostly consist of multiple words.
+        self.dontcares = [r".*(^| )any($| ).*", r".*(^| )doesnt ?matter($| ).*", r".*(^| )dont ?care($| ).*"]
         # Different word_types have their own minimum word length, words below that length are
         # not considered for matching (unless they are a perfect match with a value from self.possible_values).
         # For example: if we misspell 'west' we would still consider 'est', but not 'st'.
         self.levenshtein_min = {
-            "inform": {"food": 2, "pricerange": 3, "area": 2},
-            "request": {"food": 3, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 3}}
+            "items": {"food": 2, "pricerange": 3, "area": 2},
+            "synonyms": {"food": 3, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 3}}
         self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
 
-    def check_levenshtein(self, speech_act, word_type, word):
-        assert(word_type in self.levenshtein_min[speech_act].keys())
+    def check_levenshtein(self, relation, word_type, word):
+        assert(word_type in self.levenshtein_min[relation].keys())
         # Allowed word_type: "food_type", "price_range", "location", "phone", "address" and "postcode".
-        if word in self.possible_values[speech_act][word_type]:
+        if word in self.possible_values[relation][word_type]:
             # Perfect matches are returned regardless of blacklists or wordlength.
             return word
-        elif word not in self.blacklist and len(word) >= self.levenshtein_min[speech_act][word_type]:
+        elif word not in self.blacklist and len(word) >= self.levenshtein_min[relation][word_type]:
             # Words that easily create confusion are blacklisted. And 'short' wordt are also not considered.
             correct_word, lv_distance = None, None
-            for value in self.possible_values[speech_act][word_type]:
+            for value in self.possible_values[relation][word_type]:
                 # For all possible values of the word_type we check the Levenshtein distance, and choose the one with
                 # the lowest (in case of a tie, we just pick the first one we encounter).
                 distance = Levenshtein.distance(value, word)
@@ -105,21 +108,30 @@ class KeywordMatch:
         # this method will check whether the user mentions a word that matches with a word from the csv file
         # it also checks words that are misspelled with help of the check_levenshtein method
         # it returns a dictionary with preferences for foodtype, area and pricerange
-        
         words = user_utterance.split(" ")
         pref_dict = {"food": None, "area": None, "pricerange": None, "": None}
-
+        if any(re.search(dc, user_utterance) is not None for dc in self.dontcares):
+            # Here we know that there is a specification of 'dontcare'. We first check if this is specific to a
+            # certain category. Otherwise we assign it to the key "", which means the category has to be infered
+            # from the last inquiry that the system made.
+            for word in words:
+                for category in ("food", "area", "pricerange"):
+                    if self.check_levenshtein("synonyms", category, word) is not None:
+                        pref_dict[category] = "dontcare"
+            if all(pref is None for pref in pref_dict.values()):
+                pref_dict[""] = "dontcare"
+        # Now we check for specific preferences for specific categories (possibly overwriting a 'dontcare').
         for word in words:
             if pref_dict["food"] is None:
-                lev_word = self.check_levenshtein("inform", "food", word)
+                lev_word = self.check_levenshtein("items", "food", word)
                 if lev_word is not None:
                     pref_dict["food"] = lev_word
             if pref_dict["area"] is None:
-                lev_word = self.check_levenshtein("inform", "area", word)
+                lev_word = self.check_levenshtein("items", "area", word)
                 if lev_word is not None:
                     pref_dict["area"] = lev_word
             if pref_dict["pricerange"] is None:
-                lev_word = self.check_levenshtein("inform", "pricerange", word)
+                lev_word = self.check_levenshtein("items", "pricerange", word)
                 if lev_word is not None:
                     pref_dict["pricerange"] = lev_word
         return pref_dict
@@ -128,8 +140,8 @@ class KeywordMatch:
         requests = []
         words = user_utterance.split(" ")
         for word in words:
-            for category in self.possible_values["request"]:
-                if self.check_levenshtein("request", category, word) is not None:
+            for category in self.possible_values["synonyms"]:
+                if self.check_levenshtein("synonyms", category, word) is not None:
                     requests.append(category)
         return requests
 
@@ -184,10 +196,11 @@ class DialogHistory:
     def decline(self, restaurant):
         self.declined.append(restaurant)
     
-    def set_request(self, request):
-        assert(request in ("pricerange", "area", "food", "addr", "phone", "postcode"))
-        if request not in self.requests:
-            self.requests.append(request)
+    def set_request(self, requests):
+        for request in requests:
+            assert(request in ("pricerange", "area", "food", "addr", "phone", "postcode"))
+            if request not in self.requests:
+                self.requests.append(request)
 
     def get_requests(self):
         requests = self.requests
@@ -279,9 +292,8 @@ class DialogState:
             self.history.last_inquiry = rnd.choice(open_preferences)
         
         def generate_sentence(self):
-            confirm = ""
-            if len(self.history.speech_acts[-1].parameters) > 0:
-                confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
+            confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
+            if confirm != "":
                 confirm = f"Ok, {confirm}. "
             return f"{confirm}{SystemUtterance.ask_information(self.history.last_inquiry)}"
         
@@ -309,7 +321,8 @@ class DialogState:
             specs = []
             suggestion = self.history.last_suggestion
             requests = self.history.get_requests()
-            if len(requests) == 0:  # this is temporary, until we have a matcher for 'request' acts.
+            if len(requests) == 0:
+                # If no requests have been identified, just give all contact info.
                 requests = ["addr", "postcode", "phone"]
             for request in requests:
                 specs.append(f"the {request} is: {suggestion.items[request]}")
@@ -353,8 +366,7 @@ class DialogState:
             if speech_act.act in ("inform", "reqalts"):
                 self.history.process_preferences(speech_act)
             elif speech_act.act == "request":
-                for request in speech_act.parameters.values():
-                    self.history.set_request(request)
+                self.history.set_request(speech_act.parameters.values())
             elif speech_act.act in ("thankyou", "bye"):
                 self.history.terminate = True
 
@@ -457,7 +469,7 @@ def main():
     while state is not None:
         utterance = None
         if state.state_type == "USER":
-            utterance = input("").lower()
+            utterance = input("").lower().replace("'", "")
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
