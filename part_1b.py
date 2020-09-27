@@ -1,7 +1,6 @@
 import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
 import random as rnd
-import re
 
 
 # we define a class of speech acts (for example inform and request) in which we split the label from the parameters
@@ -58,62 +57,42 @@ class KeywordMatch:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
         self.preference_values = {
-            "food": [],
-            "area": [],
-            "pricerange": [],
+            "food": [], "area": [], "pricerange": [],
             "phone": ["phone number", "phone", "phonenumber"],
             "addr": ["address"],
-            "postcode": ["postcode", "post"]
-        }
-        
+            "postcode": ["postcode", "post"]}
+        self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
+        self.levenshtein_min = {"food": 2, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 2}
         # check for the restaurants whether possible preferences have been added, if not add
         for restaurant in self.restaurant_info.restaurants:
             for preference in ["food", "area", "pricerange"]:
                 if restaurant.items[preference] not in self.preference_values[preference]:
                     self.preference_values[preference].append(restaurant.items[preference])
 
-    def check_levenshtein(self, word, type = False):
-        # allowed type : "food_type", "price_range", "location", "phone", "address" and "postcode"
-        # different types have their own minimum word length
-        # based on the keyword matching words, for example if we misspell west as est, we still spellcheck est
-        # if we would misspell it as st then we do not consider that
-        # for general use the type is just falls, for correcting specific food types then
-        # the type is supplied and each type has its own minimum length (see ifs below)
-        blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
-        # words that get confused and changed easily frequently belong in the blacklist
-        w_len = len(word)
-        if word in blacklist or (type is False and w_len < 3):  # general words are only allowed if they are length 3 and up
-            return False
-        if (
-                type == "food" and w_len < 2) or (
-                type == "pricerange" and w_len < 3) or (
-                type == "area" and w_len < 2) or (
-                type == "phone" and w_len < 3) or (
-                type == "addr" and w_len < 4) or (
-                type == "postcode" and w_len < 2
-        ):
-            return False
-        match_dict = {
-            "correct_word": False,
-            "type": False,
-            "index": -1,
-            "lv_distance": 4  # max allowed distance, if its 4 at the end we return false
-        }
-        loop_array = ["food", "pricerange", "area","phone", "addr", "postcode"]
-        for type_index, value_type in enumerate(loop_array):
-            if type is not False and value_type != type:
-                continue
-            for element in self.preference_values[value_type]:
-                lv_distance = Levenshtein.distance(element, word)
-                if lv_distance < match_dict["lv_distance"]:
-                    match_dict["lv_distance"] = lv_distance
-                    match_dict["type"] = value_type
-                    match_dict["index"] = type_index
-                    match_dict["correct_word"] = element
-                    #if lv_distance < 3: print(word + " changed into " + element)  # debug that prints the word changes
-        if match_dict["lv_distance"] < 3:
-            return match_dict["correct_word"]
-        return False
+    def check_levenshtein(self, word, word_type):
+        assert(word_type in self.levenshtein_min.keys())
+        # Allowed word_type: "food_type", "price_range", "location", "phone", "address" and "postcode".
+        # Different types have their own minimum word length, wordt below that length are not considered (unless they
+        # are a perfect match with a value from self.preference_values).
+        # For example: if we misspell 'west' as 'est', we still spellcheck 'est', but if we would misspell it as 'st'
+        # then we don't consider it.
+        if word in self.preference_values[word_type]:
+            # Perfect matches are returned regardless of blacklists or wordlength.
+            return word
+        elif word not in self.blacklist and len(word) >= self.levenshtein_min[word_type]:
+            # Words that get confused and changed easily frequently are blacklisted. And 'short' wordt are not considered.
+            correct_word, lv_distance = None, None
+            for value in self.preference_values[word_type]:
+                # For all possible values of the word_type we check the Levenshtein distance, and choose the one with
+                # the lowest (in case of a tie, we just pick the first one we encounter).
+                distance = Levenshtein.distance(value, word)
+                if lv_distance is None or distance < lv_distance:
+                    lv_distance = distance
+                    correct_word = value
+            if lv_distance < 2:
+                # We only assume that this word was meant, if the Levenshtein distance is shorter than 2.
+                return correct_word
+        return None
 
     def keyword_match_pref(self, user_utterance):
         # this method will check whether the user mentions a word that matches with a word from the csv file
@@ -121,27 +100,24 @@ class KeywordMatch:
         # it returns a dictionary with preferences for foodtype, area and pricerange
         
         words = user_utterance.split(" ")
-        pref_dict = {"food": None, "area": None, "pricerange": None}
+        pref_dict = {"food": None, "area": None, "pricerange": None, "": None}
 
         for word in words:
             if pref_dict["food"] is None:
-                if word in self.preference_values["food"]:
-                    pref_dict["food"] = word
-                elif self.check_levenshtein(word) in self.preference_values["food"]:
-                    pref_dict["food"] = self.check_levenshtein(word)
+                lev_word = self.check_levenshtein(word, "food")
+                if lev_word is not None:
+                    pref_dict["food"] = lev_word
             if pref_dict["area"] is None:
-                if word in self.preference_values["area"]:
-                    pref_dict["area"] = word
-                elif self.check_levenshtein(word) in self.preference_values["area"]:
-                    pref_dict["area"] = self.check_levenshtein(word)
+                lev_word = self.check_levenshtein(word, "area")
+                if lev_word is not None:
+                    pref_dict["area"] = lev_word
             if pref_dict["pricerange"] is None:
-                if word in self.preference_values["pricerange"]:
-                    pref_dict["pricerange"] = word
-                elif self.check_levenshtein(word) in self.preference_values["pricerange"]:
-                    pref_dict["pricerange"] = self.check_levenshtein(word)
+                lev_word = self.check_levenshtein(word, "pricerange")
+                if lev_word is not None:
+                    pref_dict["pricerange"] = lev_word
         return pref_dict
 
-    def keyword_match_info(self, user_utterance):
+    def keyword_match_request(self, user_utterance):
         # this method checks whether one of the words is mentioned which indicates a request for information about a certain restaurant
         # it will be a dictionary with types mapped to a Boolean (True/ False)
         # when at least one entry is True, it will be able for the dialog manager to give the user the desired information about the restaurant
@@ -150,15 +126,15 @@ class KeywordMatch:
         for word in words:
             if word == "phone" or word == "phonenumber":
                 pref_info["phone"] = True
-            if self.check_levenshtein(word) == "phone" or self.check_levenshtein(word) == "phonenumber":
+            if self.check_levenshtein(word, "phone") == "phone" or self.check_levenshtein(word, "phone") == "phonenumber":
                 pref_info["phone"] = True
             if word == "address":
                 pref_info["addr"] = True
-            if self.check_levenshtein(word) == "address":
+            if self.check_levenshtein(word, "addr") == "address":
                 pref_info["addr"] = True
             if word == "postcode" or word == "post": 
                 pref_info["postcode"] = True
-            if self.check_levenshtein(word) == "postcode" or self.check_levenshtein(word) == "post":
+            if self.check_levenshtein(word, "postcode") == "postcode" or self.check_levenshtein(word, "postcode") == "post":
                 pref_info["postcode"] = True
         return pref_info
 
@@ -174,7 +150,7 @@ class SystemUtterance:
             "pricerange": "in the {0} pricerange",
             "food": "which serve {0} food"},
         "CONFIRMATION": {
-            "area": "{0} part",
+            "area": "in the {0}",
             "pricerange": "{0} prices",
             "food": "{0} food"},
         "QUESTION": {
