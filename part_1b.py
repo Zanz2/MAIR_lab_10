@@ -56,41 +56,48 @@ class KeywordMatch:
     # keyword matching class
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
-        self.preference_values = {
-            "food": [], "area": [], "pricerange": [],
-            "phone": ["phone number", "phone", "phonenumber"],
-            "addr": ["address"],
-            "postcode": ["postcode", "post"]}
+        # Dict with possible values per category to match input words with. For speech_act=inform these possible
+        # values are are the unique values from the 'restaurant_info' dataset. For speech_act=request the possible
+        # values are synonyms of the word itself.
+        self.possible_values = {
+            "inform": {
+                "food": list(set(r.items["food"] for r in restaurant_info.restaurants)),
+                "area": list(set(r.items["area"] for r in restaurant_info.restaurants)),
+                "pricerange": list(set(r.items["pricerange"] for r in restaurant_info.restaurants))},
+            "request": {
+                "food": ["food", "cuisine", "foodtype"],
+                "area": ["area", "neighborhood", "region"],
+                "pricerange": ["pricerange", "price", "prices", "pricyness"],
+                "phone": ["phone", "phonenumber", "telephone", "telephonenumber", "number"],
+                "addr": ["addr", "address", "street"],
+                "postcode": ["postcode", "postal", "post", "code"]}}
+        # Different word_types have their own minimum word length, words below that length are
+        # not considered for matching (unless they are a perfect match with a value from self.possible_values).
+        # For example: if we misspell 'west' we would still consider 'est', but not 'st'.
+        self.levenshtein_min = {
+            "inform": {"food": 2, "pricerange": 3, "area": 2},
+            "request": {"food": 3, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 3}}
         self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
-        self.levenshtein_min = {"food": 2, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 2}
-        # check for the restaurants whether possible preferences have been added, if not add
-        for restaurant in self.restaurant_info.restaurants:
-            for preference in ["food", "area", "pricerange"]:
-                if restaurant.items[preference] not in self.preference_values[preference]:
-                    self.preference_values[preference].append(restaurant.items[preference])
 
-    def check_levenshtein(self, word, word_type):
-        assert(word_type in self.levenshtein_min.keys())
+    def check_levenshtein(self, speech_act, word_type, word):
+        assert(word_type in self.levenshtein_min[speech_act].keys())
         # Allowed word_type: "food_type", "price_range", "location", "phone", "address" and "postcode".
-        # Different types have their own minimum word length, wordt below that length are not considered (unless they
-        # are a perfect match with a value from self.preference_values).
-        # For example: if we misspell 'west' as 'est', we still spellcheck 'est', but if we would misspell it as 'st'
-        # then we don't consider it.
-        if word in self.preference_values[word_type]:
+        if word in self.possible_values[speech_act][word_type]:
             # Perfect matches are returned regardless of blacklists or wordlength.
             return word
-        elif word not in self.blacklist and len(word) >= self.levenshtein_min[word_type]:
-            # Words that get confused and changed easily frequently are blacklisted. And 'short' wordt are not considered.
+        elif word not in self.blacklist and len(word) >= self.levenshtein_min[speech_act][word_type]:
+            # Words that easily create confusion are blacklisted. And 'short' wordt are also not considered.
             correct_word, lv_distance = None, None
-            for value in self.preference_values[word_type]:
+            for value in self.possible_values[speech_act][word_type]:
                 # For all possible values of the word_type we check the Levenshtein distance, and choose the one with
                 # the lowest (in case of a tie, we just pick the first one we encounter).
                 distance = Levenshtein.distance(value, word)
                 if lv_distance is None or distance < lv_distance:
                     lv_distance = distance
                     correct_word = value
-            if lv_distance < 2:
-                # We only assume that this word was meant, if the Levenshtein distance is shorter than 2.
+            if lv_distance <= int(len(correct_word) / 3):
+                # We only assume that this word was meant, if the Levenshtein distance is less or equal than a third
+                # of the length of the original word (so for 'west', 1 edit is allowed, and for 'chinese': 2)
                 return correct_word
         return None
 
@@ -104,39 +111,27 @@ class KeywordMatch:
 
         for word in words:
             if pref_dict["food"] is None:
-                lev_word = self.check_levenshtein(word, "food")
+                lev_word = self.check_levenshtein("inform", "food", word)
                 if lev_word is not None:
                     pref_dict["food"] = lev_word
             if pref_dict["area"] is None:
-                lev_word = self.check_levenshtein(word, "area")
+                lev_word = self.check_levenshtein("inform", "area", word)
                 if lev_word is not None:
                     pref_dict["area"] = lev_word
             if pref_dict["pricerange"] is None:
-                lev_word = self.check_levenshtein(word, "pricerange")
+                lev_word = self.check_levenshtein("inform", "pricerange", word)
                 if lev_word is not None:
                     pref_dict["pricerange"] = lev_word
         return pref_dict
 
     def keyword_match_request(self, user_utterance):
-        # this method checks whether one of the words is mentioned which indicates a request for information about a certain restaurant
-        # it will be a dictionary with types mapped to a Boolean (True/ False)
-        # when at least one entry is True, it will be able for the dialog manager to give the user the desired information about the restaurant
+        requests = []
         words = user_utterance.split(" ")
-        pref_info = {"phone": False, "addr": False, "postcode": False}
         for word in words:
-            if word == "phone" or word == "phonenumber":
-                pref_info["phone"] = True
-            if self.check_levenshtein(word, "phone") == "phone" or self.check_levenshtein(word, "phone") == "phonenumber":
-                pref_info["phone"] = True
-            if word == "address":
-                pref_info["addr"] = True
-            if self.check_levenshtein(word, "addr") == "address":
-                pref_info["addr"] = True
-            if word == "postcode" or word == "post": 
-                pref_info["postcode"] = True
-            if self.check_levenshtein(word, "postcode") == "postcode" or self.check_levenshtein(word, "postcode") == "post":
-                pref_info["postcode"] = True
-        return pref_info
+            for category in self.possible_values["request"]:
+                if self.check_levenshtein("request", category, word) is not None:
+                    requests.append(category)
+        return requests
 
 
 class SystemUtterance:
@@ -209,6 +204,15 @@ class DialogHistory:
                 selection = [r for r in selection if r.items[category] == preference]
         selection = [r for r in selection if r not in self.declined]
         return selection
+    
+    def process_preferences(self, speech_act):
+        if speech_act.act == "reqalts" and self.last_suggestion is not None:
+            self.decline(self.last_suggestion)
+        for category, preference in speech_act.parameters.items():
+            if category in ("pricerange", "food", "area"):
+                self.preferences[category] = preference
+            elif category == "":
+                self.preferences[self.last_inquiry] = preference
 
 
 class DialogState:
@@ -333,12 +337,8 @@ class DialogState:
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
             # update new information from the user
-            if speech_act.act == "inform":
-                for category, preference in speech_act.parameters.items():
-                    if category in ("pricerange", "food", "area"):
-                        self.history.preferences[category] = preference
-                    elif category == "":
-                        self.history.preferences[self.history.last_inquiry] = preference
+            if speech_act.act in ("inform", "reqalts"):
+                self.history.process_preferences(speech_act)
 
         def determine_next_state(self):
             return DialogState.AllPreferencesKnown(self.history)
@@ -350,11 +350,8 @@ class DialogState:
         def process_user_act(self, speech_act):
             self.history.speech_acts.append(speech_act)
             # update new information from the user, or save the user requests to answer in the next state.
-            if speech_act.act == "reqalts":
-                self.history.decline(self.history.last_suggestion)
-                for category, preference in speech_act.parameters.items():
-                    if category in ("pricerange", "food", "area"):
-                        self.history.preferences[category] = preference
+            if speech_act.act in ("inform", "reqalts"):
+                self.history.process_preferences(speech_act)
             elif speech_act.act == "request":
                 for request in speech_act.parameters.values():
                     self.history.set_request(request)
@@ -438,11 +435,15 @@ class Transitioner:
         # Classify the user input with the SGD classifier from part 1a.
         vector = self.data_elements.vectorizer.transform([utterance])
         predicted = sto_gr_des(self.data_elements, vector)[0]
-        if predicted == "inform":
-            # Include the found parameters for the 'inform' act.
+        if predicted in ("inform", "reqalts"):
+            # Include the found parameters for the 'inform' act (for 'reqalts' these are the same possible paramters).
             preferences = self.matcher.keyword_match_pref(utterance)
             return SpeechAct(predicted, {cat: pref for cat, pref in preferences.items() if pref is not None})
-        # For all other acts, don't include any parameters (for requests/reqalts this is yet to be developed).
+        elif predicted == "request":
+            # Include the matched requests.
+            requests = self.matcher.keyword_match_request(utterance)
+            return SpeechAct(predicted, requests)
+        # For all other acts, don't include any parameters.
         return SpeechAct(predicted)
 
 
