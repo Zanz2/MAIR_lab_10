@@ -62,9 +62,9 @@ class KeywordMatch:
         # values are synonyms of the word itself.
         self.possible_values = {
             "items": {
-                "food": list(set(r.items["food"] for r in restaurant_info.restaurants)),
-                "area": list(set(r.items["area"] for r in restaurant_info.restaurants)),
-                "pricerange": list(set(r.items["pricerange"] for r in restaurant_info.restaurants))},
+                "food": list(set(r.items["food"] for r in restaurant_info.restaurants if r.items["food"] != "")),
+                "area": list(set(r.items["area"] for r in restaurant_info.restaurants if r.items["area"] != "")),
+                "pricerange": list(set(r.items["pricerange"] for r in restaurant_info.restaurants if r.items["pricerange"] != ""))},
             "synonyms": {
                 "food": ["food", "cuisine", "foodtype"],
                 "area": ["area", "neighborhood", "region"],
