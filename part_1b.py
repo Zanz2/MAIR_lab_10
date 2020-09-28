@@ -125,19 +125,13 @@ class KeywordMatch:
                 pref_dict[""] = "dontcare"
         # Now we check for specific preferences for specific categories (possibly overwriting a 'dontcare').
         for word in words:
-            if pref_dict["food"] is None:
-                lev_word = self.check_levenshtein("items", "food", word)
-                if lev_word is not None:
-                    pref_dict["food"] = lev_word
-            if pref_dict["area"] is None:
-                lev_word = self.check_levenshtein("items", "area", word)
-                if lev_word is not None:
-                    pref_dict["area"] = lev_word
-            if pref_dict["pricerange"] is None:
-                lev_word = self.check_levenshtein("items", "pricerange", word)
-                if lev_word is not None:
-                    pref_dict["pricerange"] = lev_word
+            for preference in ["food", "area", "pricerange"]:
+                if pref_dict[preference] is None:
+                    lev_word = self.check_levenshtein("items", preference, word)
+                    if lev_word is not None:
+                        pref_dict[preference] = lev_word
         return pref_dict
+
 
     def keyword_match_request(self, user_utterance):
         requests = []
