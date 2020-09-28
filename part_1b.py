@@ -303,7 +303,7 @@ class SystemUtterance:
             "secondaries": "Do you have any other wishes? Perhaps: good food / good atmosphere / big beverage "
                            "selection / spacious / not busy / long time / \nshort time / children / romantic / "
                            "fast service / seating outside / good for meetings / good for studying."}}
-    
+
     @classmethod
     def generate_combination(cls, preferences, utterance_type):
         assert(utterance_type in ("STATEMENT", "DESCRIPTION", "CONFIRMATION"))
