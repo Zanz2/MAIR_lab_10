@@ -132,7 +132,6 @@ class KeywordMatch:
                         pref_dict[preference] = lev_word
         return pref_dict
 
-
     def keyword_match_request(self, user_utterance):
         requests = []
         words = user_utterance.split(" ")
@@ -203,10 +202,17 @@ class DialogHistory:
         requests = self.requests
         self.requests = []
         return requests
-
-    def preferences_filled(self):
-        return len([preference for preference in self.preferences.values() if preference is None]) == 0
     
+    def relevant_open_preferences(self):
+        # Check for which categories (pricerange/area/food) there are still multiple possibilities within the currently
+        # available suggestions. For example, if all the options are in the 'north', then 'area' is not a relevant
+        # category to specify anymore. Categories that are already specified also dont have to specified again.
+        categories, options = [], self.restaurants()
+        for cat in self.preferences:
+            if self.preferences[cat] is None and len(set(r.items[cat] for r in options)) > 1:
+                categories.append(cat)
+        return categories
+        
     def restaurants(self):
         selection = [r for r in self.restaurant_info.restaurants]
         for category, preference in self.preferences.items():
@@ -284,11 +290,11 @@ class DialogState:
     class AskPreference(BaseState):
         def __init__(self, history):
             super().__init__("SYSTEM", "AskPreference", history)
-            # choose a random preference that is not yet known to ask the user.
-            open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
-            self.history.last_inquiry = rnd.choice(open_preferences)
+            # Choose a random preference that is not yet known (and is still relevant to ask) to ask the user.
+            self.history.last_inquiry = rnd.choice(self.history.relevant_open_preferences())
         
         def generate_sentence(self):
+            # First implicitly confirm the given preferences (if any), then ask the chosen inquiry.
             confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
             if confirm != "":
                 confirm = f"Ok, {confirm}. "
@@ -376,7 +382,7 @@ class DialogState:
             super().__init__("EVAL", "AllPreferencesKnown", history)
         
         def determine_next_state(self):
-            if self.history.preferences_filled():
+            if len(self.history.relevant_open_preferences()) == 0:
                 return DialogState.SuggestionAvailable(self.history)
             else:
                 return DialogState.AskPreference(self.history)
