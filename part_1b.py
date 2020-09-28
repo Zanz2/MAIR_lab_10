@@ -302,7 +302,9 @@ class SystemUtterance:
             "food": "What kind of food would you like?",
             "secondaries": "Do you have any other wishes? Perhaps: good food / good atmosphere / big beverage "
                            "selection / spacious / not busy / long time / \nshort time / children / romantic / "
-                           "fast service / seating outside / good for meetings / good for studying."}}
+                           "fast service / seating outside / good for meetings / good for studying."
+        }
+    }
 
     @classmethod
     def generate_combination(cls, preferences, utterance_type):
@@ -525,7 +527,6 @@ class DialogState:
                 # Show restaurants by order of score on secondary preferences
                 self.history.last_suggestion = restaurant_list[0]
                 # now that the restaurants were supposedly ranked by secondary preference score
-                # TODO we need to print which preferences the restaurant satisfied and which it did not
         
         def generate_sentence(self):
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
@@ -790,7 +791,7 @@ class Inference:
 # load dialog_acts and restaurant_info, and begin chat with user.
 def main():
     data_elements = DataElements("dialog_acts.dat")
-    restaurant_info = RestaurantInfo("1c_implication/restaurant_info_v2.csv")
+    restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
