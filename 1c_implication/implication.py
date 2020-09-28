@@ -29,16 +29,16 @@ def alter_restaurants(file):
     for index, row in csv_input.iterrows():
         if rnd.random() > 0.33:
             row["goodfood"] = "True"
-        if rnd.random() > 0.5:
+        if rnd.random() > 0.33:
             row["goodatmosphere"] = "True"
-        if rnd.random() > 0.5:
+        if rnd.random() > 0.33:
             row["bigbeverageselection"] = "True"
-        if rnd.random() > 0.5:
+        if rnd.random() > 0.33:
             row["spacious"] = "True"
     csv_input.to_csv(new_csv, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
-#alter_restaurants(old_csv)
+alter_restaurants(old_csv)
 
 class MockRestaurant:
     def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere, bigbeverageselection, spacious):
