@@ -22,19 +22,80 @@ class SpeechAct:
         return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
 
 
+# Here we store the logic to do an initial cleanup of input sentences. Lowercase, dual-words, etc.
+class SentenceCleanser:
+    DUALS = ["asian oriental", "modern european", "north american"]
+    
+    @classmethod
+    def concat_dual_words(cls, utterance):
+        for d in cls.DUALS:
+            if d in utterance:
+                utterance = utterance.replace(d, d.replace(" ", "_"))
+        return utterance
+    
+    @classmethod
+    def cleanse(cls, utterance):
+        return cls.concat_dual_words(utterance.replace("'", "").lower())
+
+
 # here we load the restaurant info and create a list with the restaurant data (including food, area, pricerange etc.)
 class RestaurantInfo:
     def __init__(self, filename):
         self.filename = filename
         self.restaurants = self.__parse_data()
+        self.sets = {
+            "pricerange": [
+                {"cheap", "moderate"},
+                {"moderate", "expensive"}],
+            "area": [
+                {"centre", "north", "west"},
+                {"centre", "north", "east"},
+                {"centre", "south", "west"},
+                {"centre", "south", "east"}],
+            "food": [
+                {"thai", "chinese", "korean", "vietnamese", "asian_oriental"},
+                {"mediterranean", "spanish", "portuguese", "italian", "romanian", "tuscan", "catalan"},
+                {"french", "european", "bistro", "swiss", "gastropub", "traditional"},
+                {"north_american", "steakhouse", "british"},
+                {"lebanese", "turkish", "persian"},
+                {"international", "modern_european", "fusion"}]}
 
     def __parse_data(self):
         restaurants = []
         csv_data = pd.read_csv(self.filename, header=0, na_filter=False)
         for row in csv_data.values:
+            row = [SentenceCleanser.concat_dual_words(column) for column in row]
             restaurantname, pricerange, area, food, phone, addr, postcode = row
             restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode))
         return restaurants
+    
+    def query_selection(self, preferences):
+        # Return all restaurants that satisfy the conditions in preferences.
+        selection = [r for r in self.restaurants]
+        for category, preference in preferences.items():
+            if preference not in (None, "dontcare"):
+                selection = [r for r in selection if r.items[category] == preference]
+        return selection
+    
+    def query_alternatives(self, preferences):
+        # Return all restaurants that whose values are members of the same set as the specified preference.
+        alternatives = []
+        new_prefs = {cat: set() for cat, pref in preferences.items() if pref not in (None, "dontcare")}
+        for cat in new_prefs:
+            for cset in self.sets[cat]:
+                if preferences[cat] in cset:
+                    new_prefs[cat] = new_prefs[cat].union(cset)
+        for restaurant in self.restaurants:
+            if all(restaurant.items[cat] in new_prefs[cat] for cat in new_prefs):
+                deviant = len([cat for cat in new_prefs if restaurant.items[cat] != preferences[cat]])
+                # We also keep track of how many categories are deviant from the initial preference.
+                alternatives.append((deviant, restaurant))
+        # First we shuffle the results, then we sort by the number of deviant categories, such that restaurants with
+        # the same number of deviant categories are listed in random order.
+        rnd.shuffle(alternatives)
+        alternatives.sort(key=lambda alternative: alternative[0])
+        # We only return the restaurant instances.
+        return [alternative[1] for alternative in alternatives]
 
 
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
@@ -83,7 +144,9 @@ class KeywordMatch:
         self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
 
     def __get_unique_entries(self, category):
-        return list(set(r.items[category] for r in self.restaurant_info.restaurants if r.items[category] != ""))
+        # Return all unique values from restaurants dataset. Skip over empty entries, and concat dual-words.
+        uniques = list(set(r.items[category] for r in self.restaurant_info.restaurants))
+        return [SentenceCleanser.concat_dual_words(u) for u in uniques if u != ""]
         
     def check_levenshtein(self, relation, word_type, word):
         assert(word_type in self.levenshtein_min[relation].keys())
@@ -131,7 +194,6 @@ class KeywordMatch:
                     if lev_word is not None:
                         pref_dict[preference] = lev_word
         return pref_dict
-
 
     def keyword_match_request(self, user_utterance):
         requests = []
@@ -203,17 +265,22 @@ class DialogHistory:
         requests = self.requests
         self.requests = []
         return requests
-
-    def preferences_filled(self):
-        return len([preference for preference in self.preferences.values() if preference is None]) == 0
     
+    def relevant_open_preferences(self):
+        # Check for which categories (pricerange/area/food) there are still multiple possibilities within the currently
+        # available suggestions. For example, if all the options are in the 'north', then 'area' is not a relevant
+        # category to specify anymore. Categories that are already specified also dont have to specified again.
+        categories, options = [], self.restaurants()
+        for cat in self.preferences:
+            if self.preferences[cat] is None and len(set(r.items[cat] for r in options)) > 1:
+                categories.append(cat)
+        return categories
+        
     def restaurants(self):
-        selection = [r for r in self.restaurant_info.restaurants]
-        for category, preference in self.preferences.items():
-            if preference not in (None, "dontcare"):
-                selection = [r for r in selection if r.items[category] == preference]
-        selection = [r for r in selection if r not in self.declined]
-        return selection
+        return [r for r in self.restaurant_info.query_selection(self.preferences) if r not in self.declined]
+    
+    def alternatives(self):
+        return [r for r in self.restaurant_info.query_alternatives(self.preferences) if r not in self.declined]
     
     def process_preferences(self, speech_act):
         if speech_act.act == "reqalts" and self.last_suggestion is not None:
@@ -275,6 +342,7 @@ class DialogState:
             super().__init__("SYSTEM", "ReportUnavailability", history)
         
         def generate_sentence(self):
+            alternatives = self.history.alternatives()
             sentence = SystemUtterance.generate_combination(self.history.preferences, "DESCRIPTION")
             return f"I'm sorry, there are no restaurants that are {sentence}. Please change one of your preferences."
         
@@ -284,11 +352,11 @@ class DialogState:
     class AskPreference(BaseState):
         def __init__(self, history):
             super().__init__("SYSTEM", "AskPreference", history)
-            # choose a random preference that is not yet known to ask the user.
-            open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
-            self.history.last_inquiry = rnd.choice(open_preferences)
+            # Choose a random preference that is not yet known (and is still relevant to ask) to ask the user.
+            self.history.last_inquiry = rnd.choice(self.history.relevant_open_preferences())
         
         def generate_sentence(self):
+            # First implicitly confirm the given preferences (if any), then ask the chosen inquiry.
             confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
             if confirm != "":
                 confirm = f"Ok, {confirm}. "
@@ -376,7 +444,7 @@ class DialogState:
             super().__init__("EVAL", "AllPreferencesKnown", history)
         
         def determine_next_state(self):
-            if self.history.preferences_filled():
+            if len(self.history.relevant_open_preferences()) == 0:
                 return DialogState.SuggestionAvailable(self.history)
             else:
                 return DialogState.AskPreference(self.history)
@@ -466,7 +534,7 @@ def main():
     while state is not None:
         utterance = None
         if state.state_type == "USER":
-            utterance = input("").lower().replace("'", "")
+            utterance = SentenceCleanser.cleanse(input(""))
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
