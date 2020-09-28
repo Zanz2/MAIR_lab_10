@@ -173,3 +173,25 @@ class SystemUtterance:
     @classmethod
     def ask_information(cls, category):
         return cls.TEMPLATES["QUESTION"][category]
+
+
+class InferenceRule:
+    id_counter = 0
+    
+    def __init__(self, antecedent, consequent, truth_value):
+        InferenceRule.id_counter += 1
+        self.rule_id = InferenceRule.id_counter
+        self.antecedent = antecedent
+        self.consequent = consequent
+        self.truth_value = truth_value
+
+
+rule1 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
+rule2 = InferenceRule(lambda i: i["pricerange"] == "moderate", "longwaitingtime", True)
+rule3 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
+
+
+def infere_rule(restaurant, inference_rule):
+    if inference_rule.antecedent(restaurant.items):
+        restaurant.items[inference_rule.consequent] = inference_rule.truth_value
+
