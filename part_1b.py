@@ -22,6 +22,22 @@ class SpeechAct:
         return f"{{'act': '{self.act}', 'parameters': {parameters}}}"
 
 
+# Here we store the logic to do an initial cleanup of input sentences. Lowercase, dual-words, etc.
+class SentenceCleanser:
+    DUALS = ["asian oriental", "modern european", "north american"]
+    
+    @classmethod
+    def concat_dual_words(cls, utterance):
+        for d in cls.DUALS:
+            if d in utterance:
+                utterance = utterance.replace(d, d.replace(" ", "_"))
+        return utterance
+    
+    @classmethod
+    def cleanse(cls, utterance):
+        return cls.concat_dual_words(utterance.replace("'", "").lower())
+
+
 # here we load the restaurant info and create a list with the restaurant data (including food, area, pricerange etc.)
 class RestaurantInfo:
     def __init__(self, filename):
@@ -32,6 +48,7 @@ class RestaurantInfo:
         restaurants = []
         csv_data = pd.read_csv(self.filename, header=0, na_filter=False)
         for row in csv_data.values:
+            row = [SentenceCleanser.concat_dual_words(column) for column in row]
             restaurantname, pricerange, area, food, phone, addr, postcode = row
             restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode))
         return restaurants
@@ -83,7 +100,9 @@ class KeywordMatch:
         self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
 
     def __get_unique_entries(self, category):
-        return list(set(r.items[category] for r in self.restaurant_info.restaurants if r.items[category] != ""))
+        # Return all unique values from restaurants dataset. Skip over empty entries, and concat dual-words.
+        uniques = list(set(r.items[category] for r in self.restaurant_info.restaurants))
+        return [SentenceCleanser.concat_dual_words(u) for u in uniques if u != ""]
         
     def check_levenshtein(self, relation, word_type, word):
         assert(word_type in self.levenshtein_min[relation].keys())
@@ -176,6 +195,27 @@ class SystemUtterance:
     @classmethod
     def ask_information(cls, category):
         return cls.TEMPLATES["QUESTION"][category]
+
+
+class SetMembership:
+    def __init__(self, restaurant_info):
+        self.restaurant_info = restaurant_info
+        self.sets = {
+            "pricerange": {
+                {"cheap", "moderate"},
+                {"moderate", "expensive"}},
+            "area": {
+                {"centre", "north", "west"},
+                {"centre", "north", "east"},
+                {"centre", "south", "west"},
+                {"centre", "south", "east"}},
+            "food": {
+                {"thai", "chinese", "korean", "vietnamese", "asian oriental"},
+                {"mediterranean", "spanish", "portuguese", "italian", "romanian", "tuscan", "catalan"},
+                {"french", "european", "bistro", "swiss", "gastropub", "traditional"},
+                {"north american", "steakhouse", "british"},
+                {"lebanese", "turkish", "persian"},
+                {"international", "modern european", "fusion"}}}
 
 
 class DialogHistory:
@@ -472,7 +512,7 @@ def main():
     while state is not None:
         utterance = None
         if state.state_type == "USER":
-            utterance = input("").lower().replace("'", "")
+            utterance = SentenceCleanser.cleanse(input(""))
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
