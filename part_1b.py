@@ -494,16 +494,18 @@ class DialogState:
                 restaurant_inferred_preferences = restaurant.items
                 user_stated_preferences = history.secondary_preferences
                 for preference, boolean_val in user_stated_preferences.items():
-                    if restaurant_inferred_preferences[preference] == boolean_val:
-                        score_count += 1
+                    if boolean_val is not None:
+                        if restaurant_inferred_preferences[preference] == boolean_val:
+                            score_count += 1
+                        else:
+                            score_count -= 1
                 restaurant.score = score_count
 
             restaurant_list = sorted(self.history.restaurants(), key=lambda restaur: restaur.score)
-            self.history.last_suggestion = restaurant_list[0]
+            self.history.last_suggestion = restaurant_list[0] # shows restaurants by order of score on secondary preferences
             # now that the restaurants were supposedly ranked by secondary preference score
             # TODO we need to print which preferences the restaurant satisfied and which it did not
-            # FIXME but for now the inferred rules dont get applied to any restaurant since the passed
-            #  antecedent parameter doesnt register as an attribute in the inference rule class
+            # (for which ones the score was + 1 and which ones it was -1
         
         def generate_sentence(self):
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
