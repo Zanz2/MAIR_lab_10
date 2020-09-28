@@ -124,6 +124,10 @@ class Restaurant:
             "goodforstudying": None
         }
         self.score = 0
+        self.preference_assesment_dict = {
+            "pros": [],
+            "cons": []
+        }
 
     def apply_inferred_rules(self):
         for rule in Inference.Rules:
@@ -497,8 +501,10 @@ class DialogState:
                     if boolean_val is not None:
                         if restaurant_inferred_preferences[preference] == boolean_val:
                             score_count += 1
+                            restaurant.preference_assesment_dict["pros"].append(preference)
                         else:
                             score_count -= 1
+                            restaurant.preference_assesment_dict["cons"].append(preference)
                 restaurant.score = score_count
 
             restaurant_list = sorted(self.history.restaurants(), key=lambda restaur: restaur.score)
