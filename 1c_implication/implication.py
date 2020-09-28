@@ -38,7 +38,7 @@ def alter_restaurants(file):
     csv_input.to_csv(new_csv, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
-alter_restaurants(old_csv)
+#alter_restaurants(old_csv)
 
 class MockRestaurant:
     def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere, bigbeverageselection, spacious):
@@ -166,111 +166,4 @@ for restaurant in restaurants:
 
 for restaurant in restaurants:
     print("test")
-
-class MockDialogState:
-    # Here we define all the the different states of our system, corresponding to the flowchart as seen in the
-    # report. Hierarchically it is structed like this:
-    # BaseState:
-    #     state_type == SYSTEM: (Here the system generates a sentence -> must override generate_sentence())
-    #         Welcome
-    #         ReportUnavailability
-    #         ....
-    #     state_type == USER: (User input is being handled -> must override process_user_act())
-    #         ExpressPreference
-    #         ....
-    #     state_type == EVAL: (These states are where conditions are being checked)
-    #         AllPreferencesKnown
-    #         ....
-    # In every state we can calculate the next state (until the flowchart is exhausted).
-    class MockBaseState:
-        def __init__(self, state_type, state, history):
-            assert (state_type in ("SYSTEM", "USER", "EVAL"))  # only 3 types of possible states (see diagram).
-            self.state_type = state_type
-            self.state = state
-            self.history = history
-
-        def process_user_act(self, _):
-            if self.state_type == "USER":
-                raise NotImplementedError()  # In case of state_type = USER, this method must be overridden.
-
-        def generate_sentence(self):
-            if self.state_type == "SYSTEM":
-                raise NotImplementedError()  # In case of state_type = SYSTEM, this method must be overridden.
-
-        def determine_next_state(self):
-            raise NotImplementedError()  # This method must always be overridden.
-
-    class AskExtraPreference(MockBaseState):
-        def __init__(self, history):
-            super().__init__("SYSTEM", "AskExtraPreference", history)
-            # choose a random preference that is not yet known to ask the user.
-            open_preferences = [cat for cat, pref in self.history.preferences.items() if pref is None]
-            self.history.last_inquiry = rnd.choice(open_preferences)
-
-        def generate_sentence(self):
-            confirm = ""
-            if len(self.history.speech_acts[-1].parameters) > 0:
-                confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
-                confirm = f"Ok, {confirm}. "
-            return f"{confirm}{SystemUtterance.ask_information(self.history.last_inquiry)}"
-
-        def determine_next_state(self):
-            return MockDialogState.ExpressPreference(self.history)
-
-
-class SystemUtterance:
-    TEMPLATES = {
-        "STATEMENT": {
-            "area": "it is in the {0} part of town",
-            "pricerange": "the prices are {0}",
-            "food": "they serve {0} food"},
-        "DESCRIPTION": {
-            "area": "in the {0} part of town",
-            "pricerange": "in the {0} pricerange",
-            "food": "which serve {0} food"},
-        "CONFIRMATION": {
-            "area": "{0} part",
-            "pricerange": "{0} prices",
-            "food": "{0} food"},
-        "QUESTION": {
-            "area": "What part of town do you have in mind?",
-            "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
-            "food": "What kind of food would you like?"}}
-
-    @classmethod
-    def generate_combination(cls, preferences, utterance_type):
-        assert (utterance_type in ("STATEMENT", "DESCRIPTION", "CONFIRMATION"))
-        sub_sentences = []
-        for cat, pref in preferences.items():
-            if cat in ("pricerange", "area", "food"):
-                if pref not in (None, "dontcare"):
-                    sub_sentences.append(cls.TEMPLATES[utterance_type][cat].format(pref))
-        if len(sub_sentences) <= 1:
-            return "".join(sub_sentences)
-        return ", ".join(sub_sentences[:-2] + [f"{sub_sentences[-2]} and {sub_sentences[-1]}"])
-
-    @classmethod
-    def ask_information(cls, category):
-        return cls.TEMPLATES["QUESTION"][category]
-
-# afterwards change it to this:
-class InferenceRule:
-    id_counter = 0
-    
-    def __init__(self, antecedent, consequent, truth_value):
-        InferenceRule.id_counter += 1
-        self.rule_id = InferenceRule.id_counter
-        self.antecedent = antecedent
-        self.consequent = consequent
-        self.truth_value = truth_value
-
-
-rule1 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
-rule2 = InferenceRule(lambda i: i["pricerange"] == "moderate", "longwaitingtime", True)
-rule3 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
-
-
-def infere_rule(restaurant, inference_rule):
-    if inference_rule.antecedent(restaurant.items):
-        restaurant.items[inference_rule.consequent] = inference_rule.truth_value
 

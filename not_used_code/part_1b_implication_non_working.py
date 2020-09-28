@@ -65,85 +65,11 @@ class Restaurant:
 			"goodformeetings": None,
 			"goodforstudying": None
 		}
+		self.score = 0
 
-	def apply_inferred_rules(self):  # FIXME make this into a class
-		items = self.items
-
-		rule1 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
-		rule1.infere_rule(self)
-		# rule2 = InferenceRule(lambda i: i["pricerange"] == "moderate", "longwaitingtime", True)
-		# rule3 = InferenceRule(lambda i: i["largebeverageselection"] and i["longwaitingtime"], "goodatmosphere", True)
-		for _ in range(3):
-			if items["bigbeverageselection"] and items["goodatmosphere"]:
-				items["longtime"] = True
-				self.inference_rules_history.append("rule 1")
-			if items["goodatmosphere"] and items["goodfood"]:
-				items["busy"] = True
-				self.inference_rules_history.append("rule 2")
-			if items["pricerange"] == "cheap" and items["goodfood"]:
-				items["busy"] = True
-				self.inference_rules_history.append("rule 3")
-			if items["fastservice"] and items["pricerange"] == "cheap":
-				items["shorttime"] = True
-				self.inference_rules_history.append("rule 4")
-			if items["food"] == "spanish":
-				items["longtime"] = True
-				self.inference_rules_history.append("rule 5")
-			if items["busy"]:
-				items["longtime"] = True
-				self.inference_rules_history.append("rule 6")
-			if items["longtime"]:
-				items["children"] = False
-				self.inference_rules_history.append("rule 7")
-			if items["busy"]:
-				items["romantic"] = False
-				self.inference_rules_history.append("rule 8")
-			if items["longtime"]:
-				items["romantic"] = True
-				self.inference_rules_history.append("rule 9")
-			if items["shorttime"]:
-				items["children"] = True
-				self.inference_rules_history.append("rule 10")
-			if items["children"]:
-				items["goodforstudying"] = False
-				self.inference_rules_history.append("rule 11")
-			if items["children"]:
-				items["goodformeetings"] = False
-				self.inference_rules_history.append("rule 12")
-			if items["goodatmosphere"] and items["spacious"]:
-				items["goodforstudying"] = False
-				self.inference_rules_history.append("rule 13")
-			if items["seatingoutside"] and items["goodatmosphere"]:
-				items["romantic"] = True
-				self.inference_rules_history.append("rule 14")
-			if items["longtime"]:
-				items["goodforstudying"]
-				self.inference_rules_history.append("rule 15")
-			if items["longtime"]:
-				items["goodformeetings"]
-				self.inference_rules_history.append("rule 16")
-			if items["pricerange"] == "expensive" and items["shorttime"]:
-				items["busy"] = False
-				self.inference_rules_history.append("rule 17")
-			if items["pricerange"] == "moderate" and items["longtime"]:
-				items["goodforstudying"] = True
-				self.inference_rules_history.append("rule 18")
-			if items["pricerange"] == "expensive" and items["longtime"]:
-				items["goodformeetings"] = True
-				self.inference_rules_history.append("rule 19")
-			if items["seatingoutside"] and items["longtime"]:
-				items["fastservice"] = False
-				self.inference_rules_history.append("rule 20")
-			if items["pricerange"] == "expensive" and items["goodatmosphere"]:
-				items["romantic"] = True
-				self.inference_rules_history.append("rule 21")
-			if items["shorttime"]:
-				items["longtime"] = False
-				self.inference_rules_history.append("rule 22")
-			if items["longtime"]:
-				items["shorttime"] = False
-				self.inference_rules_history.append("rule 23")
-		self.items = items
+	def apply_inferred_rules(self):
+		for rule in Inference.Rules:
+			rule.infere_rule(self)
 
 	def __str__(self):
 		return str(self.items)
@@ -170,21 +96,24 @@ class KeywordMatch:
 				"postcode": ["postcode", "postal", "post", "code"]
 			},
 			"secondary_synonyms": {
-				"goodfood": ["good food"],
-				"goodatmosphere": ["good atmosphere"],
-				"bigbeverageselection": ["big beverage selection"],
-				"spacious": ["spacious"],
-				"busy": ["busy"],
-				"longtime": ["long time"],
-				"shorttime": ["short time"],
-				"children": ["children"],
-				"romantic": ["romantic"],
-				"fastservice": ["fast service"],
-				"seatingoutside": ["seating outside", "outdoor seating"],
-				"goodformeetings": ["good for meetings", "nice for meetings"],
-				"goodforstudying": ["good for studying", "nice for studying"]
+				"goodfood": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome",
+				             "tasteful", "yummy", "delicious", "tasty"],
+				"goodatmosphere": ["good atmosphere", "environment"],
+				"bigbeverageselection": ["big beverage selection", "drink list"],
+				"spacious": ["spacious", "roomy", "sizeable", "large space", "high-ceilinged"],
+				"busy": ["busy", "hectic"],
+				"longtime": ["long time", "for hours"],
+				"shorttime": ["short time", "quick meal"],
+				"children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly",
+				             "for the kids", "safe for children"],
+				"romantic": ["romantic", "idyllic", "charming", "idealistic", "picturesque"],
+				"fastservice": ["fast service", "swift service", "quick service", "rapid service"],
+				"seatingoutside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
+				"goodformeetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering",
+				                    "convention", "summit", "get-together", "rendezvous"],
+				"goodforstudying": ["good for studying", "nice for studying", "place of education", "learning space"]
 			},
-			"negations": ["shouldnt be", "not"]
+			"negations": ["shouldnt", "not", "dont", "wont", "arent", "cant"]
 		}
 		# The dontcare specifier we check with regular expressions, since they mostly consist of multiple words.
 		self.dontcares = [r".*(^| )any($| ).*", r".*(^| )doesnt ?matter($| ).*", r".*(^| )dont ?care($| ).*"]
@@ -239,18 +168,11 @@ class KeywordMatch:
 				pref_dict[""] = "dontcare"
 		# Now we check for specific preferences for specific categories (possibly overwriting a 'dontcare').
 		for word in words:
-			if pref_dict["food"] is None:
-				lev_word = self.check_levenshtein("items", "food", word)
-				if lev_word is not None:
-					pref_dict["food"] = lev_word
-			if pref_dict["area"] is None:
-				lev_word = self.check_levenshtein("items", "area", word)
-				if lev_word is not None:
-					pref_dict["area"] = lev_word
-			if pref_dict["pricerange"] is None:
-				lev_word = self.check_levenshtein("items", "pricerange", word)
-				if lev_word is not None:
-					pref_dict["pricerange"] = lev_word
+			for preference in ["food", "area", "pricerange"]:
+				if pref_dict[preference] is None:
+					lev_word = self.check_levenshtein("items", preference, word)
+					if lev_word is not None:
+						pref_dict[preference] = lev_word
 		return pref_dict
 
 	def keyword_match_request(self, user_utterance):
@@ -261,6 +183,36 @@ class KeywordMatch:
 				if self.check_levenshtein("synonyms", category, word) is not None:
 					requests.append(category)
 		return requests
+
+	def sentence_match_secondary_pref(self, user_utterance):
+		negations = self.possible_values["negations"]
+		synonyms = self.possible_values["secondary_synonyms"]
+		end_of_word_array = []
+		for preference, word_array in synonyms.items():
+			for word in word_array:
+				if user_utterance.find(word) > -1:
+					end_of_word_index = user_utterance.find(word) + len(word)
+					word_dict = {
+						"preference": preference,
+						"end_of_word_index": end_of_word_index
+					}
+					end_of_word_array.append(word_dict)
+					break
+		end_of_word_array.sort(key=lambda dictionary: dictionary["end_of_word_index"])
+		start = 0
+		result_array = []
+		for selection_dict in end_of_word_array:
+			sentence_chunk = user_utterance[start:selection_dict["end_of_word_index"]]
+			start = selection_dict["end_of_word_index"]
+			result_dict = {
+				"preference": selection_dict["preference"],
+				"negation": False
+			}
+			for negation in negations:
+				if negation in sentence_chunk:
+					result_dict["negation"] = True
+			result_array.append(result_dict)
+		return result_array
 
 
 class SystemUtterance:
@@ -281,8 +233,8 @@ class SystemUtterance:
 			"area": "What part of town do you have in mind?",
 			"pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
 			"food": "What kind of food would you like?",
-			"secondarypreferences": """Do you have any secondary preferences? Here is a list of some of the possible options \n
-                good food, good atmosphere, big beverage selection, spacious, not busy, long time,\n
+			"secondarypreferences": """Do you have any secondary preferences? Here is a list of the possible options:
+                good food, good atmosphere, big beverage selection, spacious, not busy, long time,
                 short time, children, romantic, fast service, seating outside, good for meetings, good for studying"""
 		}
 	}
@@ -307,6 +259,7 @@ class SystemUtterance:
 class DialogHistory:
 	def __init__(self, restaurant_info):
 		self.restaurant_info = restaurant_info
+		self.matcher = KeywordMatch(restaurant_info)
 		self.preferences = {"pricerange": None, "area": None, "food": None}
 		self.secondary_preferences = {
 			"goodfood": None,
@@ -367,17 +320,18 @@ class DialogHistory:
 				self.preferences[self.last_inquiry] = preference
 
 	def process_secondary_preferences(self, user_utterance):
-		print("do things")
-		# get the sentence
-		# make a new function like keyword_match_secondary_pref
-		# in it split up the sentence into chunks with:
-		# busy_index = sentence.find("busy")
-		# busy_index + len("busy")
-		# for each chunk look for negations (not, isnt, shouldnt be etc)
-		# fill the history with these secondary preferences
-		# in the other state check if the above are filled before asking again
-		# show the user the suggestions, with prints when a certain restaurant complied or didnt comply to the selected rules
-		# lastly refactor the restaurant.apply infered rule ifs to use the lambda design
+		self.secondary_preferences_asked = True
+		user_utterance = user_utterance.replace("'", "")
+
+		result_array = self.matcher.sentence_match_secondary_pref(user_utterance)
+		for result in result_array:
+			if result["negation"]:
+				self.secondary_preferences[result["preference"]] = False
+			else:
+				self.secondary_preferences[result["preference"]] = True
+
+	# show the user the suggestions, with prints when a certain restaurant complied or didnt comply to the selected rules
+	# lastly refactor the restaurant.apply infered rule ifs to use the lambda design
 
 
 class DialogState:
@@ -466,7 +420,20 @@ class DialogState:
 		def __init__(self, history):
 			super().__init__("SYSTEM", "SuggestOption", history)
 			# choose a random option from the restaurants satisfying the user's conditions.
-			self.history.last_suggestion = rnd.choice(self.history.restaurants())
+			for restaurant in self.history.restaurants():
+				score_count = 0
+				restaurant.apply_inferred_rules()  # apply the rules for 3 passes (new antecedents from consequents etc)
+				restaurant.apply_inferred_rules()
+				restaurant.apply_inferred_rules()
+				restaurant_inferred_preferences = restaurant.items
+				user_stated_preferences = history.secondary_preferences
+				for preference, boolean_val in user_stated_preferences.items():
+					if restaurant_inferred_preferences[preference] == boolean_val:
+						score_count += 1
+				restaurant.score = score_count
+
+			restaurant_list = sorted(self.history.restaurants(), key=lambda restaur: restaur.score)
+			self.history.last_suggestion = restaurant_list[0]
 
 		def generate_sentence(self):
 			sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
@@ -524,7 +491,6 @@ class DialogState:
 
 		def process_user_act(self, speech_act):  # this processes the sentence instead of the act, because the acts
 			# of secondary preferences are usually very varied or even null
-
 			self.history.process_secondary_preferences(self.history.last_user_utterance)
 
 		def determine_next_state(self):
@@ -563,9 +529,9 @@ class DialogState:
 			super().__init__("EVAL", "SecondaryPreferencesKnown", history)
 
 		def determine_next_state(self):
-			if self.history.preferences_filled():
+			if self.history.secondary_preferences_asked:
 				return DialogState.SuggestOption(self.history)
-				# return DialogState.SuggestionAvailable(self.history)
+			# return DialogState.SuggestionAvailable(self.history)
 			else:
 				return DialogState.AskSecondaryPreference(self.history)
 
@@ -576,7 +542,7 @@ class DialogState:
 		def determine_next_state(self):
 			if len(self.history.restaurants()) > 0:
 				return DialogState.AskSecondaryPreference(self.history)
-				# return DialogState.SuggestOption(self.history)
+			# return DialogState.SuggestOption(self.history)
 			else:
 				return DialogState.ReportUnavailability(self.history)
 
@@ -659,6 +625,37 @@ class InferenceRule:
 	def infere_rule(self, restaurant):
 		if self.antecedent(restaurant.items):
 			restaurant.items[self.consequent] = self.truth_value
+			test32 = 1
+
+
+class Inference:  # dilemma = do it like this, or use only A and B style like in examples?
+	# this way = more compact and succint
+	# the other way = more code, more parameters, but the inference rule class is a bit simplified
+	Rules = [
+		InferenceRule(lambda i: i["bigbeverageselection"] and i["goodatmosphere"], "longtime", True),
+		InferenceRule(lambda i: i["goodfood"] and i["goodatmosphere"], "busy", True),
+		InferenceRule(lambda i: i["goodfood"] and i["pricerange"] == "cheap", "busy", True),
+		InferenceRule(lambda i: i["fastservice"] and i["pricerange"] == "cheap", "shorttime", True),
+		InferenceRule(lambda i: i["food"] == "spanish", "longtime", True),
+		InferenceRule(lambda i: i["busy"], "longtime", True),
+		InferenceRule(lambda i: i["longtime"], "children", False),
+		InferenceRule(lambda i: i["shorttime"], "children", True),
+		InferenceRule(lambda i: i["busy"], "romantic", False),
+		InferenceRule(lambda i: i["longtime"], "romantic", True),
+		InferenceRule(lambda i: i["children"], "goodforstudying", False),
+		InferenceRule(lambda i: i["children"], "goodformeetings", False),
+		InferenceRule(lambda i: i["spacious"] and i["goodatmosphere"], "goodforstudying", True),
+		InferenceRule(lambda i: i["seatingoutside"] and i["goodatmosphere"], "romantic", True),
+		InferenceRule(lambda i: i["longtime"], "goodforstudying", True),
+		InferenceRule(lambda i: i["longtime"], "goodformeetings", True),
+		InferenceRule(lambda i: i["pricerange"] == "expensive" and i["shorttime"], "busy", False),
+		InferenceRule(lambda i: i["pricerange"] == "moderate" and i["longtime"], "goodforstudying", True),
+		InferenceRule(lambda i: i["pricerange"] == "expensive" and i["longtime"], "goodformeetings", True),
+		InferenceRule(lambda i: i["seatingoutside"] and i["longtime"], "fastservice", False),
+		InferenceRule(lambda i: i["pricerange"] == "expensive" and i["goodatmosphere"], "romantic", True),
+		InferenceRule(lambda i: i["longtime"], "shorttime", False),
+		InferenceRule(lambda i: i["shorttime"], "longtime", False)
+	]
 
 
 # load dialog_acts and restaurant_info, and begin chat with user.
