@@ -43,6 +43,22 @@ class RestaurantInfo:
     def __init__(self, filename):
         self.filename = filename
         self.restaurants = self.__parse_data()
+        self.sets = {
+            "pricerange": [
+                {"cheap", "moderate"},
+                {"moderate", "expensive"}],
+            "area": [
+                {"centre", "north", "west"},
+                {"centre", "north", "east"},
+                {"centre", "south", "west"},
+                {"centre", "south", "east"}],
+            "food": [
+                {"thai", "chinese", "korean", "vietnamese", "asian_oriental"},
+                {"mediterranean", "spanish", "portuguese", "italian", "romanian", "tuscan", "catalan"},
+                {"french", "european", "bistro", "swiss", "gastropub", "traditional"},
+                {"north_american", "steakhouse", "british"},
+                {"lebanese", "turkish", "persian"},
+                {"international", "modern_european", "fusion"}]}
 
     def __parse_data(self):
         restaurants = []
@@ -52,6 +68,34 @@ class RestaurantInfo:
             restaurantname, pricerange, area, food, phone, addr, postcode = row
             restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode))
         return restaurants
+    
+    def query_selection(self, preferences):
+        # Return all restaurants that satisfy the conditions in preferences.
+        selection = [r for r in self.restaurants]
+        for category, preference in preferences.items():
+            if preference not in (None, "dontcare"):
+                selection = [r for r in selection if r.items[category] == preference]
+        return selection
+    
+    def query_alternatives(self, preferences):
+        # Return all restaurants that whose values are members of the same set as the specified preference.
+        alternatives = []
+        new_prefs = {cat: set() for cat, pref in preferences.items() if pref not in (None, "dontcare")}
+        for cat in new_prefs:
+            for cset in self.sets[cat]:
+                if preferences[cat] in cset:
+                    new_prefs[cat] = new_prefs[cat].union(cset)
+        for restaurant in self.restaurants:
+            if all(restaurant.items[cat] in new_prefs[cat] for cat in new_prefs):
+                deviant = len([cat for cat in new_prefs if restaurant.items[cat] != preferences[cat]])
+                # We also keep track of how many categories are deviant from the initial preference.
+                alternatives.append((deviant, restaurant))
+        # First we shuffle the results, then we sort by the number of deviant categories, such that restaurants with
+        # the same number of deviant categories are listed in random order.
+        rnd.shuffle(alternatives)
+        alternatives.sort(key=lambda alternative: alternative[0])
+        # We only return the restaurant instances.
+        return [alternative[1] for alternative in alternatives]
 
 
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
@@ -197,27 +241,6 @@ class SystemUtterance:
         return cls.TEMPLATES["QUESTION"][category]
 
 
-class SetMembership:
-    def __init__(self, restaurant_info):
-        self.restaurant_info = restaurant_info
-        self.sets = {
-            "pricerange": {
-                {"cheap", "moderate"},
-                {"moderate", "expensive"}},
-            "area": {
-                {"centre", "north", "west"},
-                {"centre", "north", "east"},
-                {"centre", "south", "west"},
-                {"centre", "south", "east"}},
-            "food": {
-                {"thai", "chinese", "korean", "vietnamese", "asian oriental"},
-                {"mediterranean", "spanish", "portuguese", "italian", "romanian", "tuscan", "catalan"},
-                {"french", "european", "bistro", "swiss", "gastropub", "traditional"},
-                {"north american", "steakhouse", "british"},
-                {"lebanese", "turkish", "persian"},
-                {"international", "modern european", "fusion"}}}
-
-
 class DialogHistory:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
@@ -254,12 +277,10 @@ class DialogHistory:
         return categories
         
     def restaurants(self):
-        selection = [r for r in self.restaurant_info.restaurants]
-        for category, preference in self.preferences.items():
-            if preference not in (None, "dontcare"):
-                selection = [r for r in selection if r.items[category] == preference]
-        selection = [r for r in selection if r not in self.declined]
-        return selection
+        return [r for r in self.restaurant_info.query_selection(self.preferences) if r not in self.declined]
+    
+    def alternatives(self):
+        return [r for r in self.restaurant_info.query_alternatives(self.preferences) if r not in self.declined]
     
     def process_preferences(self, speech_act):
         if speech_act.act == "reqalts" and self.last_suggestion is not None:
@@ -321,6 +342,7 @@ class DialogState:
             super().__init__("SYSTEM", "ReportUnavailability", history)
         
         def generate_sentence(self):
+            alternatives = self.history.alternatives()
             sentence = SystemUtterance.generate_combination(self.history.preferences, "DESCRIPTION")
             return f"I'm sorry, there are no restaurants that are {sentence}. Please change one of your preferences."
         
