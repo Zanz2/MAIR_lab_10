@@ -62,9 +62,9 @@ class KeywordMatch:
         # values are synonyms of the word itself.
         self.possible_values = {
             "items": {
-                "food": list(set(r.items["food"] for r in restaurant_info.restaurants if r.items["food"] != "")),
-                "area": list(set(r.items["area"] for r in restaurant_info.restaurants if r.items["area"] != "")),
-                "pricerange": list(set(r.items["pricerange"] for r in restaurant_info.restaurants if r.items["pricerange"] != ""))},
+                "food": self.__get_unique_entries("food"),
+                "area": self.__get_unique_entries("area"),
+                "pricerange": self.__get_unique_entries("pricerange")},
             "synonyms": {
                 "food": ["food", "cuisine", "foodtype"],
                 "area": ["area", "neighborhood", "region"],
@@ -82,6 +82,9 @@ class KeywordMatch:
             "synonyms": {"food": 3, "pricerange": 3, "area": 2, "phone": 3, "addr": 4, "postcode": 3}}
         self.blacklist = ["west", "would", "want", "world", "a", "part", "can", "what", "that", "the"]
 
+    def __get_unique_entries(self, category):
+        return list(set(r.items[category] for r in self.restaurant_info.restaurants if r.items[category] != ""))
+        
     def check_levenshtein(self, relation, word_type, word):
         assert(word_type in self.levenshtein_min[relation].keys())
         # Allowed word_type: "food_type", "price_range", "location", "phone", "address" and "postcode".
