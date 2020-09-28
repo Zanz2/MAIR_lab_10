@@ -29,7 +29,7 @@ class SentenceCleanser:
     @classmethod
     def concat_dual_words(cls, utterance):
         for d in cls.DUALS:
-            if d in utterance:
+            if type(utterance) is str and d in utterance:
                 utterance = utterance.replace(d, d.replace(" ", "_"))
         return utterance
     
@@ -65,8 +65,8 @@ class RestaurantInfo:
         csv_data = pd.read_csv(self.filename, header=0, na_filter=False)
         for row in csv_data.values:
             row = [SentenceCleanser.concat_dual_words(column) for column in row]
-            restaurantname, pricerange, area, food, phone, addr, postcode = row
-            restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode))
+            restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere, bigbeverageselection, spacious = row
+            restaurants.append(Restaurant(restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere,bigbeverageselection, spacious))
         return restaurants
     
     def query_selection(self, preferences):
@@ -100,7 +100,7 @@ class RestaurantInfo:
 
 # here we define a class for each restaurant containing the relevant information, naming them accordingly
 class Restaurant:
-    def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode):
+    def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere, bigbeverageselection, spacious):
         self.items = {
             "restaurantname": restaurantname,
             "pricerange": pricerange,
@@ -108,7 +108,26 @@ class Restaurant:
             "food": food,
             "phone": phone,
             "addr": addr,
-            "postcode": postcode}
+            "postcode": postcode,
+            "goodfood": goodfood,
+            "goodatmosphere": goodatmosphere,
+            "bigbeverageselection": bigbeverageselection,
+            "spacious": spacious,
+            "busy": None,
+            "longtime": None,
+            "shorttime": None,
+            "children": None,
+            "romantic": None,
+            "fastservice": None,
+            "seatingoutside": None,
+            "goodformeetings": None,
+            "goodforstudying": None
+        }
+        self.score = 0
+
+    def apply_inferred_rules(self):
+        for rule in Inference.Rules:
+            rule.infere_rule(self)
 
     def __str__(self):
         return str(self.items)
@@ -132,7 +151,25 @@ class KeywordMatch:
                 "pricerange": ["pricerange", "price", "prices", "pricyness"],
                 "phone": ["phone", "phonenumber", "telephone", "telephonenumber", "number"],
                 "addr": ["addr", "address", "street"],
-                "postcode": ["postcode", "postal", "post", "code"]}}
+                "postcode": ["postcode", "postal", "post", "code"]
+            },
+            "secondary_synonyms": {
+                "goodfood": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome", "tasteful", "yummy", "delicious", "tasty"],
+                "goodatmosphere": ["good atmosphere", "environment"],
+                "bigbeverageselection": ["big beverage selection", "drink list"],
+                "spacious": ["spacious", "roomy", "sizeable", "large space", "high-ceilinged"],
+                "busy": ["busy", "hectic"],
+                "longtime": ["long time", "for hours"],
+                "shorttime": ["short time", "quick meal"],
+                "children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly", "for the kids", "safe for children"],
+                "romantic": ["romantic", "idyllic", "charming", "idealistic", "picturesque"],
+                "fastservice": ["fast service", "swift service", "quick service", "rapid service"],
+                "seatingoutside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
+                "goodformeetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering", "convention", "summit", "get-together", "rendezvous"],
+                "goodforstudying": ["good for studying", "nice for studying", "place of education", "learning space"]
+            },
+            "negations": ["shouldnt", "not", "dont", "wont", "arent", "cant"]
+        }
         # The dontcare specifier we check with regular expressions, since they mostly consist of multiple words.
         self.dontcares = [r".*(^| )any($| ).*", r".*(^| )doesnt ?matter($| ).*", r".*(^| )dont ?care($| ).*"]
         # Different word_types have their own minimum word length, words below that length are
@@ -204,6 +241,37 @@ class KeywordMatch:
                     requests.append(category)
         return requests
 
+    def sentence_match_secondary_pref(self, user_utterance):
+        negations = self.possible_values["negations"]
+        synonyms = self.possible_values["secondary_synonyms"]
+        end_of_word_array = []
+        for preference, word_array in synonyms.items():
+            for word in word_array:
+                if user_utterance.find(word) > -1:
+                    end_of_word_index = user_utterance.find(word) + len(word)
+                    word_dict = {
+                        "preference": preference,
+                        "end_of_word_index": end_of_word_index
+                    }
+                    end_of_word_array.append(word_dict)
+                    break
+        end_of_word_array.sort(key=lambda dictionary: dictionary["end_of_word_index"])
+        start = 0
+        result_array = []
+        for selection_dict in end_of_word_array:
+            sentence_chunk = user_utterance[start:selection_dict["end_of_word_index"]]
+            start = selection_dict["end_of_word_index"]
+            result_dict = {
+                "preference": selection_dict["preference"],
+                "negation": False
+            }
+            for negation in negations:
+                if negation in sentence_chunk:
+                    result_dict["negation"] = True
+            result_array.append(result_dict)
+        return result_array
+
+
 
 class SystemUtterance:
     TEMPLATES = {
@@ -222,7 +290,12 @@ class SystemUtterance:
         "QUESTION": {
             "area": "What part of town do you have in mind?",
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
-            "food": "What kind of food would you like?"}}
+            "food": "What kind of food would you like?",
+            "secondarypreferences": """Do you have any secondary preferences? Here is a list of the possible options:
+                good food, good atmosphere, big beverage selection, spacious, not busy, long time,
+                short time, children, romantic, fast service, seating outside, good for meetings, good for studying"""
+        }
+    }
     
     @classmethod
     def generate_combination(cls, preferences, utterance_type):
@@ -244,7 +317,25 @@ class SystemUtterance:
 class DialogHistory:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
+        self.matcher = KeywordMatch(restaurant_info)
         self.preferences = {"pricerange": None, "area": None, "food": None}
+        self.secondary_preferences = {
+            "goodfood": None,
+            "goodatmosphere": None,
+            "bigbeverageselection": None,
+            "spacious": None,
+            "busy": None,
+            "longtime": None,
+            "shorttime": None,
+            "children": None,
+            "romantic": None,
+            "fastservice": None,
+            "seatingoutside": None,
+            "goodformeetings": None,
+            "goodforstudying": None
+        }
+        self.secondary_preferences_asked = False
+        self.last_user_utterance = None
         self.declined = []
         self.requests = []
         self.terminate = False
@@ -265,7 +356,7 @@ class DialogHistory:
         requests = self.requests
         self.requests = []
         return requests
-    
+
     def relevant_open_preferences(self):
         # Check for which categories (pricerange/area/food) there are still multiple possibilities within the currently
         # available suggestions. For example, if all the options are in the 'north', then 'area' is not a relevant
@@ -290,6 +381,21 @@ class DialogHistory:
                 self.preferences[category] = preference
             elif category == "":
                 self.preferences[self.last_inquiry] = preference
+
+    def process_secondary_preferences(self, user_utterance):
+        self.secondary_preferences_asked = True
+        user_utterance = user_utterance.replace("'", "")
+
+        result_array = self.matcher.sentence_match_secondary_pref(user_utterance)
+        for result in result_array:
+            if result["negation"]:
+                self.secondary_preferences[result["preference"]] = False
+            else:
+                self.secondary_preferences[result["preference"]] = True
+
+
+        # show the user the suggestions, with prints when a certain restaurant complied or didnt comply to the selected rules
+        # lastly refactor the restaurant.apply infered rule ifs to use the lambda design
 
 
 class DialogState:
@@ -364,12 +470,40 @@ class DialogState:
         
         def determine_next_state(self):
             return DialogState.ExpressPreference(self.history)
+
+    class AskSecondaryPreference(BaseState): # system ask secondary preferences
+        def __init__(self, history):
+            super().__init__("SYSTEM", "AskSecondaryPreference", history)
+
+
+        def generate_sentence(self):
+            return f"{SystemUtterance.ask_information('secondarypreferences')}"
+
+        def determine_next_state(self):
+            return DialogState.ExpressSecondaryPreference(self.history)
     
     class SuggestOption(BaseState):
         def __init__(self, history):
             super().__init__("SYSTEM", "SuggestOption", history)
             # choose a random option from the restaurants satisfying the user's conditions.
-            self.history.last_suggestion = rnd.choice(self.history.restaurants())
+            for restaurant in self.history.restaurants():
+                score_count = 0
+                restaurant.apply_inferred_rules() # apply the rules for 3 passes (new antecedents from consequents etc)
+                restaurant.apply_inferred_rules()
+                restaurant.apply_inferred_rules()
+                restaurant_inferred_preferences = restaurant.items
+                user_stated_preferences = history.secondary_preferences
+                for preference, boolean_val in user_stated_preferences.items():
+                    if restaurant_inferred_preferences[preference] == boolean_val:
+                        score_count += 1
+                restaurant.score = score_count
+
+            restaurant_list = sorted(self.history.restaurants(), key=lambda restaur: restaur.score)
+            self.history.last_suggestion = restaurant_list[0]
+            # now that the restaurants were supposedly ranked by secondary preference score
+            # TODO we need to print which preferences the restaurant satisfied and which it did not
+            # FIXME but for now the inferred rules dont get applied to any restaurant since the passed
+            #  antecedent parameter doesnt register as an attribute in the inference rule class
         
         def generate_sentence(self):
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
@@ -407,6 +541,7 @@ class DialogState:
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
 
+
     # Next we define the state_type == USER states.
     class ExpressPreference(BaseState):
         def __init__(self, history):
@@ -420,6 +555,17 @@ class DialogState:
 
         def determine_next_state(self):
             return DialogState.AllPreferencesKnown(self.history)
+
+    class ExpressSecondaryPreference(BaseState):  #( get express Secondary preference user input here)
+        def __init__(self, history):
+            super().__init__("USER", "ExpressSecondaryPreference", history)
+
+        def process_user_act(self, speech_act): # this processes the sentence instead of the act, because the acts
+            # of secondary preferences are usually very varied or even null
+            self.history.process_secondary_preferences(self.history.last_user_utterance)
+
+        def determine_next_state(self):
+            return DialogState.SecondaryPreferencesKnown(self.history)
     
     class ConfirmNegateOrInquire(BaseState):
         def __init__(self, history):
@@ -439,7 +585,7 @@ class DialogState:
             return DialogState.DetailsAsked(self.history)
     
     # Next we define the state_type == EVAL states.
-    class AllPreferencesKnown(BaseState):
+    class AllPreferencesKnown(BaseState): # template for Secondary preferences asked?
         def __init__(self, history):
             super().__init__("EVAL", "AllPreferencesKnown", history)
         
@@ -449,13 +595,25 @@ class DialogState:
             else:
                 return DialogState.AskPreference(self.history)
 
+    class SecondaryPreferencesKnown(BaseState):  # template for Secondary preferences asked?
+        def __init__(self, history):
+            super().__init__("EVAL", "SecondaryPreferencesKnown", history)
+
+        def determine_next_state(self):
+            if self.history.secondary_preferences_asked:
+                return DialogState.SuggestOption(self.history)
+                #return DialogState.SuggestionAvailable(self.history)
+            else:
+                return DialogState.AskSecondaryPreference(self.history)
+
     class SuggestionAvailable(BaseState):
         def __init__(self, history):
             super().__init__("EVAL", "SuggestionAvailable", history)
     
         def determine_next_state(self):
             if len(self.history.restaurants()) > 0:
-                return DialogState.SuggestOption(self.history)
+                return DialogState.AskSecondaryPreference(self.history)
+                #return DialogState.SuggestOption(self.history)
             else:
                 return DialogState.ReportUnavailability(self.history)
 
@@ -503,6 +661,7 @@ class Transitioner:
         elif current_state.state_type == "USER":
             # Here we process user responses.
             speech_act = self.utterance_to_speech_act(utterance)
+            current_state.history.last_user_utterance = utterance
             current_state.process_user_act(speech_act)
         # No matter the type of state, we determine the next state.
         next_state = current_state.determine_next_state()
@@ -524,10 +683,54 @@ class Transitioner:
         return SpeechAct(predicted)
 
 
+class InferenceRule:
+    id_counter = 0
+
+    def __init__(self, antecedent, consequent, truth_value):
+        InferenceRule.id_counter += 1
+        self.rule_id = InferenceRule.id_counter
+        self.antecedent = antecedent
+        self.consequent = consequent
+        self.truth_value = truth_value
+
+    def infere_rule(self, restaurant):
+        if self.antecedent(restaurant.items):
+            restaurant.items[self.consequent] = self.truth_value
+            test32 = 1
+
+class Inference: # dilemma = do it like this, or use only A and B style like in examples?
+    # this way = more compact and succint
+    # the other way = more code, more parameters, but the inference rule class is a bit simplified
+    Rules = [
+        InferenceRule(lambda i: i["bigbeverageselection"] and i["goodatmosphere"], "longtime", True),
+        InferenceRule(lambda i: i["goodfood"] and i["goodatmosphere"], "busy", True),
+        InferenceRule(lambda i: i["goodfood"] and i["pricerange"] == "cheap", "busy", True),
+        InferenceRule(lambda i: i["fastservice"] and i["pricerange"] == "cheap", "shorttime", True),
+        InferenceRule(lambda i: i["food"] == "spanish", "longtime", True),
+        InferenceRule(lambda i: i["busy"], "longtime", True),
+        InferenceRule(lambda i: i["longtime"], "children", False),
+        InferenceRule(lambda i: i["shorttime"], "children", True),
+        InferenceRule(lambda i: i["busy"], "romantic", False),
+        InferenceRule(lambda i: i["longtime"], "romantic", True),
+        InferenceRule(lambda i: i["children"], "goodforstudying", False),
+        InferenceRule(lambda i: i["children"], "goodformeetings", False),
+        InferenceRule(lambda i: i["spacious"] and i["goodatmosphere"], "goodforstudying", True),
+        InferenceRule(lambda i: i["seatingoutside"] and i["goodatmosphere"], "romantic", True),
+        InferenceRule(lambda i: i["longtime"], "goodforstudying", True),
+        InferenceRule(lambda i: i["longtime"], "goodformeetings", True),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["shorttime"], "busy", False),
+        InferenceRule(lambda i: i["pricerange"] == "moderate" and i["longtime"], "goodforstudying", True),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["longtime"], "goodformeetings", True),
+        InferenceRule(lambda i: i["seatingoutside"] and i["longtime"], "fastservice", False),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["goodatmosphere"], "romantic", True),
+        InferenceRule(lambda i: i["longtime"], "shorttime", False),
+        InferenceRule(lambda i: i["shorttime"], "longtime", False)
+    ]
+
 # load dialog_acts and restaurant_info, and begin chat with user.
 def main():
     data_elements = DataElements("dialog_acts.dat")
-    restaurant_info = RestaurantInfo("restaurant_info.csv")
+    restaurant_info = RestaurantInfo("1c_implication/restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
