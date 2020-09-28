@@ -38,7 +38,7 @@ def alter_restaurants(file):
     csv_input.to_csv(new_csv, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
-alter_restaurants(old_csv)
+#alter_restaurants(old_csv)
 
 class MockRestaurant:
     def __init__(self, restaurantname, pricerange, area, food, phone, addr, postcode, goodfood, goodatmosphere, bigbeverageselection, spacious):

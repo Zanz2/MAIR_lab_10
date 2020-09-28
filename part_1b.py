@@ -108,19 +108,19 @@ class Restaurant:
             "phone": data_row[4],
             "addr": data_row[5],
             "postcode": data_row[6],
-            "goodfood": data_row[7],
-            "goodatmosphere": data_row[8],
-            "bigbeverageselection": data_row[9],
+            "good food": data_row[7],
+            "good atmosphere": data_row[8],
+            "big beverage selection": data_row[9],
             "spacious": data_row[10],
             "busy": None,
-            "longtime": None,
-            "shorttime": None,
+            "long time": None,
+            "short time": None,
             "children": None,
             "romantic": None,
-            "fastservice": None,
-            "seatingoutside": None,
-            "goodformeetings": None,
-            "goodforstudying": None
+            "fast service": None,
+            "seating outside": None,
+            "good for meetings": None,
+            "good for studying": None
         }
         self.score = 0
         self.preference_assesment_dict = {
@@ -157,19 +157,19 @@ class KeywordMatch:
                 "postcode": ["postcode", "postal", "post", "code"]
             },
             "secondary_synonyms": {
-                "goodfood": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome", "tasteful", "yummy", "delicious", "tasty"],
-                "goodatmosphere": ["good atmosphere", "environment"],
-                "bigbeverageselection": ["big beverage selection", "drink list"],
+                "good food": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome", "tasteful", "yummy", "delicious", "tasty"],
+                "good atmosphere": ["good atmosphere", "environment"],
+                "big beverage selection": ["big beverage selection", "drink list"],
                 "spacious": ["spacious", "roomy", "sizeable", "large space", "high-ceilinged"],
                 "busy": ["busy", "hectic"],
-                "longtime": ["long time", "for hours"],
-                "shorttime": ["short time", "quick meal"],
+                "long time": ["long time", "for hours"],
+                "short time": ["short time", "quick meal"],
                 "children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly", "for the kids", "safe for children"],
                 "romantic": ["romantic", "idyllic", "charming", "idealistic", "picturesque"],
-                "fastservice": ["fast service", "swift service", "quick service", "rapid service"],
-                "seatingoutside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
-                "goodformeetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering", "convention", "summit", "get-together", "rendezvous"],
-                "goodforstudying": ["good for studying", "nice for studying", "place of education", "learning space"]
+                "fast service": ["fast service", "swift service", "quick service", "rapid service"],
+                "seating outside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
+                "good for meetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering", "convention", "summit", "get-together", "rendezvous"],
+                "good for studying": ["good for studying", "nice for studying", "place of education", "learning space"]
             },
             "negations": ["shouldnt", "not", "dont", "wont", "arent", "cant"]
         }
@@ -322,19 +322,19 @@ class DialogHistory:
         self.matcher = KeywordMatch(restaurant_info)
         self.preferences = {"pricerange": None, "area": None, "food": None}
         self.secondary_preferences = {
-            "goodfood": None,
-            "goodatmosphere": None,
-            "bigbeverageselection": None,
+            "good food": None,
+            "good atmosphere": None,
+            "big beverage selection": None,
             "spacious": None,
             "busy": None,
-            "longtime": None,
-            "shorttime": None,
+            "long time": None,
+            "short time": None,
             "children": None,
             "romantic": None,
-            "fastservice": None,
-            "seatingoutside": None,
-            "goodformeetings": None,
-            "goodforstudying": None
+            "fast service": None,
+            "seating outside": None,
+            "good for meetings": None,
+            "good for studying": None
         }
         self.secondary_preferences_asked = False
         self.last_user_utterance = None
@@ -509,11 +509,21 @@ class DialogState:
             self.history.last_suggestion = restaurant_list[0]
             # now that the restaurants were supposedly ranked by secondary preference score
             # TODO we need to print which preferences the restaurant satisfied and which it did not
-            # (for which ones the score was + 1 and which ones it was -1
         
         def generate_sentence(self):
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
-            return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant: {sentence}."
+            picked_restaurant = self.history.last_suggestion
+            if len(picked_restaurant.preference_assesment_dict["pros"]) > 0:
+                match_sentence = "\n Additionally it matches these of your prefferences: \n"
+                for match in picked_restaurant.preference_assesment_dict["pros"]:
+                    match_sentence += "{}, ".format(match)
+                sentence += match_sentence
+            if len(picked_restaurant.preference_assesment_dict["cons"]) > 0:
+                missmatch_sentence = "\n However it does NOT match these of your prefferences: \n"
+                for missmatch in picked_restaurant.preference_assesment_dict["cons"]:
+                    missmatch_sentence += "{}, ".format(missmatch)
+                sentence += missmatch_sentence
+            return f"{self.history.last_suggestion.items['restaurantname']} is a nice restaurant: {sentence}"
         
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -710,29 +720,29 @@ class Inference:
     # this way = more compact and succint
     # the other way = more code, more parameters, but the inference rule class is a bit simplified
     Rules = [
-        InferenceRule(lambda i: i["bigbeverageselection"] and i["goodatmosphere"], "longtime", True),
-        InferenceRule(lambda i: i["goodfood"] and i["goodatmosphere"], "busy", True),
-        InferenceRule(lambda i: i["goodfood"] and i["pricerange"] == "cheap", "busy", True),
-        InferenceRule(lambda i: i["fastservice"] and i["pricerange"] == "cheap", "shorttime", True),
-        InferenceRule(lambda i: i["food"] == "spanish", "longtime", True),
-        InferenceRule(lambda i: i["busy"], "longtime", True),
-        InferenceRule(lambda i: i["longtime"], "children", False),
-        InferenceRule(lambda i: i["shorttime"], "children", True),
+        InferenceRule(lambda i: i["big beverage selection"] and i["good atmosphere"], "long time", True),
+        InferenceRule(lambda i: i["good food"] and i["good atmosphere"], "busy", True),
+        InferenceRule(lambda i: i["good food"] and i["pricerange"] == "cheap", "busy", True),
+        InferenceRule(lambda i: i["fast service"] and i["pricerange"] == "cheap", "short time", True),
+        InferenceRule(lambda i: i["food"] == "spanish", "long time", True),
+        InferenceRule(lambda i: i["busy"], "long time", True),
+        InferenceRule(lambda i: i["long time"], "children", False),
+        InferenceRule(lambda i: i["short time"], "children", True),
         InferenceRule(lambda i: i["busy"], "romantic", False),
-        InferenceRule(lambda i: i["longtime"], "romantic", True),
-        InferenceRule(lambda i: i["children"], "goodforstudying", False),
-        InferenceRule(lambda i: i["children"], "goodformeetings", False),
-        InferenceRule(lambda i: i["spacious"] and i["goodatmosphere"], "goodforstudying", True),
-        InferenceRule(lambda i: i["seatingoutside"] and i["goodatmosphere"], "romantic", True),
-        InferenceRule(lambda i: i["longtime"], "goodforstudying", True),
-        InferenceRule(lambda i: i["longtime"], "goodformeetings", True),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["shorttime"], "busy", False),
-        InferenceRule(lambda i: i["pricerange"] == "moderate" and i["longtime"], "goodforstudying", True),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["longtime"], "goodformeetings", True),
-        InferenceRule(lambda i: i["seatingoutside"] and i["longtime"], "fastservice", False),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["goodatmosphere"], "romantic", True),
-        InferenceRule(lambda i: i["longtime"], "shorttime", False),
-        InferenceRule(lambda i: i["shorttime"], "longtime", False)
+        InferenceRule(lambda i: i["long time"], "romantic", True),
+        InferenceRule(lambda i: i["children"], "good for studying", False),
+        InferenceRule(lambda i: i["children"], "good for meetings", False),
+        InferenceRule(lambda i: i["spacious"] and i["good atmosphere"], "good for studying", True),
+        InferenceRule(lambda i: i["seating outside"] and i["good atmosphere"], "romantic", True),
+        InferenceRule(lambda i: i["long time"], "good for studying", True),
+        InferenceRule(lambda i: i["long time"], "good for meetings", True),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["short time"], "busy", False),
+        InferenceRule(lambda i: i["pricerange"] == "moderate" and i["long time"], "good for studying", True),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["long time"], "good for meetings", True),
+        InferenceRule(lambda i: i["seating outside"] and i["long time"], "fast service", False),
+        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["good atmosphere"], "romantic", True),
+        InferenceRule(lambda i: i["long time"], "short time", False),
+        InferenceRule(lambda i: i["short time"], "long time", False)
     ]
 
 
