@@ -293,9 +293,9 @@ class SystemUtterance:
             "area": "What part of town do you have in mind?",
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
             "food": "What kind of food would you like?",
-            "secondarypreferences": """Do you have any secondary preferences? Here is a list of the possible options:
-                good food, good atmosphere, big beverage selection, spacious, not busy, long time,
-                short time, children, romantic, fast service, seating outside, good for meetings, good for studying"""
+            "secondarypreferences": "Do you have any secondary preferences? Here is a list of the possible options:" \
+                "\n good food, good atmosphere, big beverage selection, spacious, not busy, long time," \
+                "\n short time, children, romantic, fast service, seating outside, good for meetings, good for studying"
         }
     }
     
@@ -514,12 +514,12 @@ class DialogState:
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
             picked_restaurant = self.history.last_suggestion
             if len(picked_restaurant.preference_assesment_dict["pros"]) > 0:
-                match_sentence = "\n Additionally it matches these of your prefferences: \n"
+                match_sentence = "\nSYSTEM: Additionally it matches these of your prefferences: \nSYSTEM: "
                 for match in picked_restaurant.preference_assesment_dict["pros"]:
                     match_sentence += "{}, ".format(match)
                 sentence += match_sentence
             if len(picked_restaurant.preference_assesment_dict["cons"]) > 0:
-                missmatch_sentence = "\n However it does NOT match these of your prefferences: \n"
+                missmatch_sentence = "\nSYSTEM: However it does NOT match these of your prefferences: \nSYSTEM: "
                 for missmatch in picked_restaurant.preference_assesment_dict["cons"]:
                     missmatch_sentence += "{}, ".format(missmatch)
                 sentence += missmatch_sentence
