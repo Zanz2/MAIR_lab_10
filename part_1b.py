@@ -696,7 +696,6 @@ class InferenceRule:
     def infere_rule(self, restaurant):
         if self.antecedent(restaurant.items):
             restaurant.items[self.consequent] = self.truth_value
-            test32 = 1
 
 class Inference: # dilemma = do it like this, or use only A and B style like in examples?
     # this way = more compact and succint
