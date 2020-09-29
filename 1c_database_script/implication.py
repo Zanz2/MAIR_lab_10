@@ -22,17 +22,17 @@ new_csv = "restaurant_info_v2.csv"
 def alter_restaurants(file):
     csv_input = pd.read_csv(file)
     # 4 rules added to db, 8 have to be inferred
-    csv_input["goodfood"] = "False"
-    csv_input["goodatmosphere"] = "False"
-    csv_input["bigbeverageselection"] = "False"
+    csv_input["good food"] = "False"
+    csv_input["good atmosphere"] = "False"
+    csv_input["big beverage selection"] = "False"
     csv_input["spacious"] = "False"
     for index, row in csv_input.iterrows():
         if rnd.random() > 0.33:
-            row["goodfood"] = "True"
+            row["good food"] = "True"
         if rnd.random() > 0.33:
-            row["goodatmosphere"] = "True"
+            row["gooda tmosphere"] = "True"
         if rnd.random() > 0.33:
-            row["bigbeverageselection"] = "True"
+            row["big beverage selection"] = "True"
         if rnd.random() > 0.33:
             row["spacious"] = "True"
     csv_input.to_csv(new_csv, index=False, quoting=csv.QUOTE_NONNUMERIC)

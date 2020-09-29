@@ -129,8 +129,23 @@ class Restaurant:
         }
 
     def apply_inferred_rules(self):
+        # iterate until none change
+        rules_array = []
+        mask_array = []
+        mask_array_new = []
+        first_pass = True
         for rule in Inference.Rules:
-            rule.infere_rule(self)
+            rules_array.append(rule)
+            mask_array.append(False)
+            mask_array_new.append(False)
+        while first_pass or (set(mask_array) != set(mask_array_new)): # until we are getting new results iterate, when its all the same stop
+            mask_array = mask_array_new
+            for index, rule in enumerate(rules_array):
+                inferred = rule.infere_rule(self)  # returns true if rule applied false otherwise
+                mask_array_new[index] = inferred
+            first_pass = False
+
+
 
     def __str__(self):
         return str(self.items)
@@ -512,8 +527,6 @@ class DialogState:
             # choose a random option from the restaurants satisfying the user's conditions.
             for restaurant in available_restaurants:
                 score_count = 0
-                restaurant.apply_inferred_rules()  # apply the rules for 3 passes (new antecedents from consequents etc)
-                restaurant.apply_inferred_rules()
                 restaurant.apply_inferred_rules()
                 restaurant_inferred_preferences = restaurant.items
                 user_stated_preferences = history.secondary_preferences
@@ -769,6 +782,8 @@ class InferenceRule:
     def infere_rule(self, restaurant):
         if self.antecedent(restaurant.items):
             restaurant.items[self.consequent] = self.truth_value
+            return True
+        return False
 
 
 class Inference:
