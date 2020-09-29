@@ -134,6 +134,9 @@ class Restaurant:
 
     def __str__(self):
         return str(self.items)
+    
+    def name(self):
+        return self.items['restaurantname'].title()
 
 
 class KeywordMatch:
@@ -328,7 +331,7 @@ class SystemUtterance:
         sentence = f"I'm sorry, there are no restaurants that are {prefs}. But we have some other recommendations: "
         for i, a in enumerate(alternatives):
             description = SystemUtterance.generate_combination(a.items, "STATEMENT")
-            sentence += f"\n    {i}. {a.items['restaurantname'].title()}: {description}"
+            sentence += f"\n    {i}. {a.name()}: {description}"
         sentence += "\nPlease select one of these numbers or change your preferences a bit."
         return sentence
 
@@ -361,6 +364,7 @@ class DialogHistory:
         self.last_suggestion = None
         self.last_inquiry = None
         self.last_alternatives = None
+        self.chosen_alternative = None
     
     def decline(self, restaurant):
         self.declined.append(restaurant)
@@ -505,44 +509,54 @@ class DialogState:
         def __init__(self, history):
             super().__init__("SYSTEM", "SuggestOption", history)
             available_restaurants = self.history.restaurants()
-            if len(available_restaurants) > 0:
-                # choose a random option from the restaurants satisfying the user's conditions.
-                for restaurant in available_restaurants:
-                    score_count = 0
-                    restaurant.apply_inferred_rules()  # apply the rules for 3 passes (new antecedents from consequents etc)
-                    restaurant.apply_inferred_rules()
-                    restaurant.apply_inferred_rules()
-                    restaurant_inferred_preferences = restaurant.items
-                    user_stated_preferences = history.secondary_preferences
-                    for preference, boolean_val in user_stated_preferences.items():
-                        if boolean_val is not None:
-                            if restaurant_inferred_preferences[preference] == boolean_val:
-                                score_count += 1
-                                restaurant.preference_assesment_dict["pros"].append(preference)
-                            else:
-                                score_count -= 1
-                                restaurant.preference_assesment_dict["cons"].append(preference)
-                    restaurant.score = score_count
-                restaurant_list = sorted(available_restaurants, key=lambda restaur: restaur.score)
-                # Show restaurants by order of score on secondary preferences
-                self.history.last_suggestion = restaurant_list[0]
-                # now that the restaurants were supposedly ranked by secondary preference score
+            # choose a random option from the restaurants satisfying the user's conditions.
+            for restaurant in available_restaurants:
+                score_count = 0
+                restaurant.apply_inferred_rules()  # apply the rules for 3 passes (new antecedents from consequents etc)
+                restaurant.apply_inferred_rules()
+                restaurant.apply_inferred_rules()
+                restaurant_inferred_preferences = restaurant.items
+                user_stated_preferences = history.secondary_preferences
+                for preference, boolean_val in user_stated_preferences.items():
+                    if boolean_val is not None:
+                        if restaurant_inferred_preferences[preference] == boolean_val:
+                            score_count += 1
+                            restaurant.preference_assesment_dict["pros"].append(preference)
+                        else:
+                            score_count -= 1
+                            restaurant.preference_assesment_dict["cons"].append(preference)
+                restaurant.score = score_count
+            restaurant_list = sorted(available_restaurants, key=lambda restaur: restaur.score)
+            # Show restaurants by order of score on secondary preferences
+            self.history.last_suggestion = restaurant_list[0]
+            # now that the restaurants were supposedly ranked by secondary preference score
         
         def generate_sentence(self):
             sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
-            if len(self.history.restaurants()) > 0:
-                picked_restaurant = self.history.last_suggestion
-                if len(picked_restaurant.preference_assesment_dict["pros"]) > 0:
-                    match_sentence = "\n Additionally it matches these of your prefferences: \n"
-                    for match in picked_restaurant.preference_assesment_dict["pros"]:
-                        match_sentence += "{}, ".format(match)
-                    sentence += match_sentence
-                if len(picked_restaurant.preference_assesment_dict["cons"]) > 0:
-                    missmatch_sentence = "\n However it does NOT match these of your prefferences: \n"
-                    for missmatch in picked_restaurant.preference_assesment_dict["cons"]:
-                        missmatch_sentence += "{}, ".format(missmatch)
-                    sentence += missmatch_sentence
-            return f"{self.history.last_suggestion.items['restaurantname'].title()} is a nice restaurant: {sentence}"
+            picked_restaurant = self.history.last_suggestion
+            if len(picked_restaurant.preference_assesment_dict["pros"]) > 0:
+                match_sentence = "\n Additionally it matches these of your prefferences: \n"
+                for match in picked_restaurant.preference_assesment_dict["pros"]:
+                    match_sentence += "{}, ".format(match)
+                sentence += match_sentence
+            if len(picked_restaurant.preference_assesment_dict["cons"]) > 0:
+                missmatch_sentence = "\n However it does NOT match these of your prefferences: \n"
+                for missmatch in picked_restaurant.preference_assesment_dict["cons"]:
+                    missmatch_sentence += "{}, ".format(missmatch)
+                sentence += missmatch_sentence
+            return f"{self.history.last_suggestion.name()} is a nice restaurant: {sentence}"
+        
+        def determine_next_state(self):
+            return DialogState.ConfirmNegateOrInquire(self.history)
+    
+    class SuggestAlternative(BaseState):
+        def __init__(self, history):
+            super().__init__("SYSTEM", "SuggestAlternative", history)
+            self.history.last_suggestion = self.history.chosen_alternative
+        
+        def generate_sentence(self):
+            sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
+            return f"{self.history.last_suggestion.name()} is a nice restaurant: {sentence}"
         
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -558,7 +572,7 @@ class DialogState:
                 requests = ["addr", "postcode", "phone"]
             specs = [f"the {req} is {suggestion.items[req]}" for req in requests]
             specs[-1] = "and " + specs[-1]
-            return f"{suggestion.items['restaurantname'].title()} is a nice restaurant, {', '.join(specs)}."
+            return f"{suggestion.name()} is a nice restaurant, {', '.join(specs)}."
         
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -596,7 +610,7 @@ class DialogState:
             # update new information from the user
             choice = KeywordMatch.number_match(self.history.last_user_utterance, len(self.history.last_alternatives))
             if choice is not None:
-                self.history.last_suggestion = self.history.last_alternatives[choice]
+                self.history.chosen_alternative = self.history.last_alternatives[choice]
             elif speech_act.act in ("inform", "reqalts"):
                 self.history.process_preferences(speech_act)
 
@@ -671,8 +685,8 @@ class DialogState:
             super().__init__("EVAL", "AlternativeAccepted", history)
     
         def determine_next_state(self):
-            if self.history.last_suggestion not in self.history.declined + [None]:
-                return DialogState.SuggestOption(self.history)
+            if self.history.chosen_alternative not in self.history.declined + [None]:
+                return DialogState.SuggestAlternative(self.history)
             else:
                 return DialogState.AllPreferencesKnown(self.history)
 
