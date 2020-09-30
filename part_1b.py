@@ -2,6 +2,7 @@ import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
 import random as rnd
 import re
+import time
 
 
 # we define a class of speech acts (for example inform and request) in which we split the label from the parameters
@@ -766,6 +767,18 @@ class Transitioner:
         # For all other acts, don't include any parameters.
         return SpeechAct(predicted)
 
+    
+#Configurability feature class:
+class Configurability:
+    def __init__(self, user_sentence, system_csentence, timer = False):
+        self.timer = timer
+
+    #time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
+    #will be generated to make it seem more like a response by a human
+    def time_delay(self, user_sentence, system_sentence, timer):
+        if self.timer == True and system_sentence != None and user_sentence != None:
+            time.sleep(0.01 * len(user_sentence) + 0.05 * len(system_sentence))
+        return
 
 class InferenceRule:
     id_counter = 0
@@ -828,6 +841,8 @@ def main():
             utterance = SentenceCleanser.cleanse(input(""))
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
+        config = Configurability(history.last_user_utterance, sentence, True)
+        config.time_delay(history.last_user_utterance, sentence, True)
         if sentence is not None:
             print(f"SYSTEM: " + sentence.replace("\n", "\nSYSTEM: "))
     print("SYSTEM: Ok, good bye! Come again!")
