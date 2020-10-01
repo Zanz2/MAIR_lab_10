@@ -2,6 +2,7 @@ import Levenshtein  # this will give you an error if you dont have it installed
 from part_1a import *
 import random as rnd
 import re
+import time
 
 
 # we define a class of speech acts (for example inform and request) in which we split the label from the parameters
@@ -127,8 +128,9 @@ class Restaurant:
             "pros": [],
             "cons": []
         }
+        self.__apply_inferred_rules()
 
-    def apply_inferred_rules(self):
+    def __apply_inferred_rules(self):
         # iterate until none change
         rules_array = []
         mask_array = []
@@ -138,14 +140,12 @@ class Restaurant:
             rules_array.append(rule)
             mask_array.append(False)
             mask_array_new.append(False)
-        while first_pass or (set(mask_array) != set(mask_array_new)): # until we are getting new results iterate, when its all the same stop
+        while first_pass or (set(mask_array) != set(mask_array_new)):  # until we are getting new results iterate, when its all the same stop
             mask_array = mask_array_new
             for index, rule in enumerate(rules_array):
                 inferred = rule.infere_rule(self)  # returns true if rule applied false otherwise
                 mask_array_new[index] = inferred
             first_pass = False
-
-
 
     def __str__(self):
         return str(self.items)
@@ -527,7 +527,6 @@ class DialogState:
             # choose a random option from the restaurants satisfying the user's conditions.
             for restaurant in available_restaurants:
                 score_count = 0
-                restaurant.apply_inferred_rules()
                 restaurant_inferred_preferences = restaurant.items
                 user_stated_preferences = history.secondary_preferences
                 for preference, boolean_val in user_stated_preferences.items():
@@ -768,6 +767,18 @@ class Transitioner:
         # For all other acts, don't include any parameters.
         return SpeechAct(predicted)
 
+    
+#Configurability feature class:
+class Configurability:
+    def __init__(self, user_sentence, system_csentence, timer = False):
+        self.timer = timer
+
+    #time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
+    #will be generated to make it seem more like a response by a human
+    def time_delay(self, user_sentence, system_sentence, timer):
+        if self.timer == True and system_sentence != None and user_sentence != None:
+            time.sleep(0.01 * len(user_sentence) + 0.05 * len(system_sentence))
+        return
 
 class InferenceRule:
     id_counter = 0
@@ -830,6 +841,8 @@ def main():
             utterance = SentenceCleanser.cleanse(input(""))
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
+        config = Configurability(history.last_user_utterance, sentence, True)
+        config.time_delay(history.last_user_utterance, sentence, True)
         if sentence is not None:
             print(f"SYSTEM: " + sentence.replace("\n", "\nSYSTEM: "))
     print("SYSTEM: Ok, good bye! Come again!")
