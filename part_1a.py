@@ -37,7 +37,7 @@ class DataElements:
         self.n_train = int(self.n_traindev * 0.85)
 
         self.vectorizer = TfidfVectorizer()  # This will change our sentences into vectors of words, will calculate occurances and also normalize them
-        self.vectorizer.fit([sentence[1] for sentence in self.original_data])  # Makes a sparse word matrix out of the entire word corpus (vectorizes it)
+        self.vectorizer.fit([sentence[1] for sentence in self.original_data[:self.n_train]])  # Makes a sparse word matrix out of the training corpus (vectorizes it)
         self.unique_labels = list(set(sentence[0] for sentence in self.original_data))
         self.label_to_id = {label: i for i, label in enumerate(self.unique_labels)}
         self.id_to_label = {i: label for i, label in enumerate(self.unique_labels)}
