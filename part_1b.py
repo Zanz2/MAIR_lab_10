@@ -767,19 +767,19 @@ class Transitioner:
         # For all other acts, don't include any parameters.
         return SpeechAct(predicted)
 
-    
-#Configurability feature class:
+
+# Configurability feature class:
 class Configurability:
-    def __init__(self, user_sentence, system_csentence, timer = False):
-        self.timer = timer
+    def __init__(self, use_timer=False):
+        self.use_timer = use_timer
 
-    #time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
-    #will be generated to make it seem more like a response by a human
-    def time_delay(self, user_sentence, system_sentence, timer):
-        if self.timer == True and system_sentence != None and user_sentence != None:
+    # Time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
+    # will be generated to make it seem more like a response by a human
+    def delay_response(self, user_sentence, system_sentence):
+        if self.use_timer and system_sentence is not None and user_sentence is not None:
             time.sleep(0.01 * len(user_sentence) + 0.05 * len(system_sentence))
-        return
 
+          
 class InferenceRule:
     id_counter = 0
 
@@ -835,15 +835,15 @@ def main():
     transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
+    config = Configurability(True)
     while state is not None:
         utterance = None
         if state.state_type == "USER":
             utterance = SentenceCleanser.cleanse(input(""))
             print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
-        config = Configurability(history.last_user_utterance, sentence, True)
-        config.time_delay(history.last_user_utterance, sentence, True)
         if sentence is not None:
+            config.delay_response(history.last_user_utterance, sentence)
             print(f"SYSTEM: " + sentence.replace("\n", "\nSYSTEM: "))
     print("SYSTEM: Ok, good bye! Come again!")
 
