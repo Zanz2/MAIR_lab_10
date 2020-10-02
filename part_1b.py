@@ -627,10 +627,10 @@ class DialogState:
         def process_user_act(self, speech_act):
             # This processes the sentence instead of the act, because the acts
             # of secondary preferences are usually very varied or even null
-            self.history.process_secondary_preferences(self.history.last_user_utterance)
+            self.history.process_secondary_preferences(self.history.last_user_utterance)  # TODO change to SuggestREstaurant
 
         def determine_next_state(self):
-            return DialogState.SecondaryPreferencesKnown(self.history)
+            return DialogState.SecondaryPreferencesAsked(self.history)
     
     class ConfirmNegateOrInquire(BaseState):
         def __init__(self, history):
@@ -660,9 +660,9 @@ class DialogState:
             else:
                 return DialogState.AskPreference(self.history)
 
-    class SecondaryPreferencesKnown(BaseState):  # template for Secondary preferences asked?
+    class SecondaryPreferencesAsked(BaseState):  # template for Secondary preferences asked?
         def __init__(self, history):
-            super().__init__("EVAL", "SecondaryPreferencesKnown", history)
+            super().__init__("EVAL", "SecondaryPreferencesAsked", history)
 
         def determine_next_state(self):
             if self.history.secondary_preferences_asked:
@@ -676,8 +676,9 @@ class DialogState:
     
         def determine_next_state(self):
             if len(self.history.restaurants()) > 0:
-                return DialogState.AskSecondaryPreference(self.history)
+                # return DialogState.AskSecondaryPreference(self.history)
                 # return DialogState.SuggestOption(self.history)
+                return DialogState.SecondaryPreferencesAsked(self.history)
             else:
                 return DialogState.OfferAlternativeOrChangePreference(self.history)
 
