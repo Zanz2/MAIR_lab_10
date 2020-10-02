@@ -123,11 +123,6 @@ class Restaurant:
             "good for meetings": None,
             "good for studying": None
         }
-        self.score = 0
-        self.preference_assesment_dict = {
-            "pros": [],
-            "cons": []
-        }
         self.__apply_inferred_rules()
 
     def __apply_inferred_rules(self):
@@ -140,7 +135,8 @@ class Restaurant:
             rules_array.append(rule)
             mask_array.append(False)
             mask_array_new.append(False)
-        while first_pass or (set(mask_array) != set(mask_array_new)):  # until we are getting new results iterate, when its all the same stop
+        while first_pass or (set(mask_array) != set(mask_array_new)):
+            # until we are getting new results iterate, when its all the same stop
             mask_array = mask_array_new
             for index, rule in enumerate(rules_array):
                 inferred = rule.infere_rule(self)  # returns true if rule applied false otherwise
@@ -152,6 +148,19 @@ class Restaurant:
     
     def name(self):
         return self.items['restaurantname'].title()
+
+    def score_secondaries(self, secondary_preferences):
+        pros = self.assess_secondaries(secondary_preferences, "pros")
+        cons = self.assess_secondaries(secondary_preferences, "cons")
+        return len(pros) - len(cons)
+
+    def assess_secondaries(self, secondary_preferences, match_side):
+        prefs = {cat: pref for cat, pref in secondary_preferences.items() if pref in (True, False)}
+        if match_side == "pros":
+            return [cat for cat, pref in prefs.items() if pref == self.items[cat]]
+        elif match_side == "cons":
+            return [cat for cat, pref in prefs.items() if (not pref) == self.items[cat]]
+        return None
 
 
 class KeywordMatch:
@@ -165,7 +174,8 @@ class KeywordMatch:
             "items": {
                 "food": self.__get_unique_entries("food"),
                 "area": self.__get_unique_entries("area"),
-                "pricerange": self.__get_unique_entries("pricerange")},
+                "pricerange": self.__get_unique_entries("pricerange")
+            },
             "synonyms": {
                 "food": ["food", "cuisine", "foodtype"],
                 "area": ["area", "neighborhood", "region"],
@@ -175,18 +185,21 @@ class KeywordMatch:
                 "postcode": ["postcode", "postal", "post", "code"]
             },
             "secondary_synonyms": {
-                "good food": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome", "tasteful", "yummy", "delicious", "tasty"],
+                "good food": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome",
+                              "tasteful", "yummy", "delicious", "tasty"],
                 "good atmosphere": ["good atmosphere", "environment"],
                 "big beverage selection": ["big beverage selection", "drink list"],
                 "spacious": ["spacious", "roomy", "sizeable", "large space", "high-ceilinged"],
                 "busy": ["busy", "hectic"],
                 "long time": ["long time", "for hours"],
                 "short time": ["short time", "quick meal"],
-                "children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly", "for the kids", "safe for children"],
+                "children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly",
+                             "for the kids", "safe for children"],
                 "romantic": ["romantic", "idyllic", "charming", "idealistic", "picturesque"],
                 "fast service": ["fast service", "swift service", "quick service", "rapid service"],
                 "seating outside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
-                "good for meetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering", "convention", "summit", "get-together", "rendezvous"],
+                "good for meetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering",
+                                      "convention", "summit", "get-together", "rendezvous"],
                 "good for studying": ["good for studying", "nice for studying", "place of education", "learning space"]
             },
             "negations": ["shouldnt", "not", "dont", "wont", "arent", "cant"]
@@ -332,10 +345,15 @@ class SystemUtterance:
             if cat in ("pricerange", "area", "food"):
                 if pref not in (None, "dontcare"):
                     sub_sentences.append(cls.TEMPLATES[utterance_type][cat].format(pref))
-        if len(sub_sentences) <= 1:
-            return "".join(sub_sentences)
-        return ", ".join(sub_sentences[:-2] + [f"{sub_sentences[-2]} and {sub_sentences[-1]}"])
-    
+        return cls.__combine(sub_sentences)
+
+    @staticmethod
+    def __combine(subs):
+        if len(subs) <= 1:
+            return "".join(subs)
+        else:
+            return ", ".join(subs[:-2] + [f"{subs[-2]} and {subs[-1]}"])
+
     @classmethod
     def ask_information(cls, category):
         return cls.TEMPLATES["QUESTION"][category]
@@ -350,26 +368,25 @@ class SystemUtterance:
         sentence += "\nPlease select one of these numbers or change your preferences a bit."
         return sentence
 
+    @classmethod
+    def suggest_restaurant(cls, restaurant, secondary_prefs):
+        sentence = SystemUtterance.generate_combination(restaurant.items, "STATEMENT")
+        pros = restaurant.assess_secondaries(secondary_prefs, "pros")
+        cons = restaurant.assess_secondaries(secondary_prefs, "cons")
+        pro_sentence, con_sentence = "", ""
+        if len(pros) > 0:
+            pro_sentence = f"It's also {cls.__combine(pros)}."
+        if len(cons) > 0:
+            con_sentence = f"However, it's not {cls.__combine(cons)}."
+        return f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence} {con_sentence}"
+
 
 class DialogHistory:
     def __init__(self, restaurant_info):
         self.restaurant_info = restaurant_info
         self.matcher = KeywordMatch(restaurant_info)
         self.preferences = {"pricerange": None, "area": None, "food": None}
-        self.secondary_preferences = {
-            "good food": None,
-            "good atmosphere": None,
-            "big beverage selection": None,
-            "spacious": None,
-            "busy": None,
-            "long time": None,
-            "short time": None,
-            "children": None,
-            "romantic": None,
-            "fast service": None,
-            "seating outside": None,
-            "good for meetings": None,
-            "good for studying": None}
+        self.secondary_preferences = {category: None for category in restaurant_info.restaurants[0].items}
         self.secondary_preferences_asked = False
         self.last_user_utterance = None
         self.declined = []
@@ -523,41 +540,14 @@ class DialogState:
     class SuggestOption(BaseState):
         def __init__(self, history):
             super().__init__("SYSTEM", "SuggestOption", history)
-            available_restaurants = self.history.restaurants()
-            # choose a random option from the restaurants satisfying the user's conditions.
-            for restaurant in available_restaurants:
-                score_count = 0
-                restaurant_inferred_preferences = restaurant.items
-                user_stated_preferences = history.secondary_preferences
-                for preference, boolean_val in user_stated_preferences.items():
-                    if boolean_val is not None:
-                        if restaurant_inferred_preferences[preference] == boolean_val:
-                            score_count += 1
-                            restaurant.preference_assesment_dict["pros"].append(preference)
-                        else:
-                            score_count -= 1
-                            restaurant.preference_assesment_dict["cons"].append(preference)
-                restaurant.score = score_count
-            restaurant_list = sorted(available_restaurants, key=lambda restaur: restaur.score)
-            # Show restaurants by order of score on secondary preferences
-            self.history.last_suggestion = restaurant_list[0]
-            # now that the restaurants were supposedly ranked by secondary preference score
+            options = self.history.restaurants()  # Possible suggestions.
+            options = rnd.sample(options, len(options))  # Shuffle before sorting to randomize between equal scores.
+            options = sorted(options, key=lambda r: r.score_secondaries(self.history.secondary_preferences))
+            self.history.last_suggestion = options[-1]  # Choose restaurant with highest score_secondaries().
         
         def generate_sentence(self):
-            sentence = SystemUtterance.generate_combination(self.history.last_suggestion.items, "STATEMENT")
-            picked_restaurant = self.history.last_suggestion
-            if len(picked_restaurant.preference_assesment_dict["pros"]) > 0:
-                match_sentence = "\n Additionally it matches these of your prefferences: \n"
-                for match in picked_restaurant.preference_assesment_dict["pros"]:
-                    match_sentence += "{}, ".format(match)
-                sentence += match_sentence
-            if len(picked_restaurant.preference_assesment_dict["cons"]) > 0:
-                missmatch_sentence = "\n However it does NOT match these of your prefferences: \n"
-                for missmatch in picked_restaurant.preference_assesment_dict["cons"]:
-                    missmatch_sentence += "{}, ".format(missmatch)
-                sentence += missmatch_sentence
-            return f"{self.history.last_suggestion.name()} is a nice restaurant: {sentence}"
-        
+            return SystemUtterance.suggest_restaurant(self.history.last_suggestion, self.history.secondary_preferences)
+
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
     
@@ -677,7 +667,6 @@ class DialogState:
         def determine_next_state(self):
             if self.history.secondary_preferences_asked:
                 return DialogState.SuggestOption(self.history)
-                # return DialogState.SuggestionAvailable(self.history)
             else:
                 return DialogState.AskSecondaryPreference(self.history)
 
@@ -835,7 +824,7 @@ def main():
     transitioner = Transitioner(data_elements, restaurant_info)
     history = DialogHistory(restaurant_info)
     state = DialogState.Welcome(history)
-    config = Configurability(True)
+    config = Configurability(False)
     while state is not None:
         utterance = None
         if state.state_type == "USER":
