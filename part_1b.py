@@ -123,7 +123,8 @@ class Restaurant:
             "good for meetings": None,
             "good for studying": None
         }
-        self.inferrence_history = []
+        self.inference_history = [] # array of dicts
+        # For what this array contains see the VerbalRules array below (ctrl+f "VerbalRules")
         self.__apply_inferred_rules()
 
     def __apply_inferred_rules(self):
@@ -139,10 +140,13 @@ class Restaurant:
         while first_pass or (set(mask_array) != set(mask_array_new)):
             # until we are getting new results iterate, when its all the same stop
             mask_array = mask_array_new
-            for index, rule in enumerate(rules_array):
-                inferred = rule.infere_rule(self)  # returns true if rule applied false otherwise
-                mask_array_new[index] = inferred
+            for index, rule_applied in enumerate(mask_array):
+                if not rule_applied:
+                    inferred = rules_array[index].infere_rule(self)  # returns true if rule applied false otherwise
+                    mask_array_new[index] = inferred
             first_pass = False
+        for index, rule_applied in enumerate(mask_array_new):
+            if rule_applied: self.inference_history.append(rules_array[index])
 
     def __str__(self):
         return str(self.items)
@@ -374,12 +378,14 @@ class SystemUtterance:
         sentence = SystemUtterance.generate_combination(restaurant.items, "STATEMENT")
         pros = restaurant.assess_secondaries(secondary_prefs, "pros")
         cons = restaurant.assess_secondaries(secondary_prefs, "cons")
-        pro_sentence, con_sentence = "", ""
-        if len(pros) > 0:
-            pro_sentence = f"It's also {cls.__combine(pros)}."
-        if len(cons) > 0:
-            con_sentence = f"However, it's not {cls.__combine(cons)}."
-        return f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence} {con_sentence}"
+        pro_sentence, con_sentence, full_length_sentence = "", "", ""
+        #if len(pros) > 0:
+        #    pro_sentence = f"It's also {cls.__combine(pros)}."
+        #if len(cons) > 0:
+        #    con_sentence = f"However, it's not {cls.__combine(cons)}."
+        for rule in restaurant.inference_history:
+            full_length_sentence += rule.rule_id_dict["rule"] # If we think its fine we can consider removing the pros and cons
+        return f"{restaurant.name()} is a nice restaurant: {sentence}.{full_length_sentence[:-1]} {pro_sentence} {con_sentence}"
 
 
 class DialogHistory:
@@ -773,11 +779,9 @@ class Configurability:
 
           
 class InferenceRule:
-    id_counter = 0
 
-    def __init__(self, antecedent, consequent, truth_value):
-        InferenceRule.id_counter += 1
-        self.rule_id = InferenceRule.id_counter
+    def __init__(self, id, antecedent, consequent, truth_value):
+        self.rule_id_dict = id
         self.antecedent = antecedent
         self.consequent = consequent
         self.truth_value = truth_value
@@ -790,33 +794,56 @@ class InferenceRule:
 
 
 class Inference:
-    # Dilemma: do it like this, or use only A and B style like in examples?
-    # this way = more compact and succint
-    # the other way = more code, more parameters, but the inference rule class is a bit simplified
+    VerbalRules = [ # i put newlines at the end but we can remove them .\n"}, => ."}, find and replace all
+        {"id": 0, "rule": " It has a big beverage selection and good atmosphere so people usually spend a long time.\n"},
+        {"id": 1, "rule": " It has good food and good atmosphere so it is often busy.\n"},
+        {"id": 2, "rule": " It has good food and cheap food so it is often busy.\n"},
+        {"id": 3, "rule": " It has cheap food and fast service so people usually dont spend a long time.\n"},
+        {"id": 4, "rule": "Spanish cuisine has many dishes so people usually spend a long time.\n"},
+        {"id": 5, "rule": "Its busy so people usually spend a long time.\n"},
+        {"id": 6, "rule": "People usually spend a long time so its not good for children.\n"},
+        {"id": 7, "rule": "People usually spend a short time so its good for children.\n"},
+        {"id": 8, "rule": "Its busy so it is not romantic.\n"},
+        {"id": 9, "rule": "People spend a long time so it can be nice for a romantic evening.\n"},
+        {"id": 10, "rule": "Its good for children so it is not good for studying due to noise.\n"},
+        {"id": 11, "rule": "Its good for children so it is not good for meetings due to noise.\n"},
+        {"id": 12, "rule": "Its spacious and has good atmosphere so its good for studying.\n"},
+        {"id": 13, "rule": "It has outside seating and good atmosphere so it is romantic.\n"},
+        {"id": 14, "rule": "People usually spend a long time and its spacious so it can be good for studying.\n"},
+        {"id": 15, "rule": "People usually spend a long time and its spacious so it can be good for meetings.\n"},
+        {"id": 16, "rule": "Its expensive and people usually dont spend a short time so its usually not busy.\n"},
+        {"id": 17, "rule": "It has a moderate pricerange and people usually spend a long time so it is good for studying.\n"},
+        {"id": 18, "rule": "It has expensive food and people usually spend a long time so its good for meetings.\n"},
+        {"id": 19, "rule": "It has outside seating is spacious and people usually spend a long time so it doesnt have fast service.\n"},
+        {"id": 20, "rule": "It has expensive food and good atmosphere so it is good for a romantic evening.\n"},
+        {"id": 21, "rule": ""},
+        {"id": 22, "rule": ""},
+    ]
+
     Rules = [
-        InferenceRule(lambda i: i["big beverage selection"] and i["good atmosphere"], "long time", True),
-        InferenceRule(lambda i: i["good food"] and i["good atmosphere"], "busy", True),
-        InferenceRule(lambda i: i["good food"] and i["pricerange"] == "cheap", "busy", True),
-        InferenceRule(lambda i: i["fast service"] and i["pricerange"] == "cheap", "short time", True),
-        InferenceRule(lambda i: i["food"] == "spanish", "long time", True),
-        InferenceRule(lambda i: i["busy"], "long time", True),
-        InferenceRule(lambda i: i["long time"], "children", False),
-        InferenceRule(lambda i: i["short time"], "children", True),
-        InferenceRule(lambda i: i["busy"], "romantic", False),
-        InferenceRule(lambda i: i["long time"], "romantic", True),
-        InferenceRule(lambda i: i["children"], "good for studying", False),
-        InferenceRule(lambda i: i["children"], "good for meetings", False),
-        InferenceRule(lambda i: i["spacious"] and i["good atmosphere"], "good for studying", True),
-        InferenceRule(lambda i: i["seating outside"] and i["good atmosphere"], "romantic", True),
-        InferenceRule(lambda i: i["long time"], "good for studying", True),
-        InferenceRule(lambda i: i["long time"], "good for meetings", True),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["short time"], "busy", False),
-        InferenceRule(lambda i: i["pricerange"] == "moderate" and i["long time"], "good for studying", True),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["long time"], "good for meetings", True),
-        InferenceRule(lambda i: i["seating outside"] and i["long time"], "fast service", False),
-        InferenceRule(lambda i: i["pricerange"] == "expensive" and i["good atmosphere"], "romantic", True),
-        InferenceRule(lambda i: i["long time"], "short time", False),
-        InferenceRule(lambda i: i["short time"], "long time", False)
+        InferenceRule(VerbalRules[0], lambda i: i["big beverage selection"] and i["good atmosphere"], "long time", True),
+        InferenceRule(VerbalRules[1], lambda i: i["good food"] and i["good atmosphere"], "busy", True),
+        InferenceRule(VerbalRules[2], lambda i: i["good food"] and i["pricerange"] == "cheap", "busy", True),
+        InferenceRule(VerbalRules[3], lambda i: i["fast service"] and i["pricerange"] == "cheap", "short time", True),
+        InferenceRule(VerbalRules[4], lambda i: i["food"] == "spanish", "long time", True),
+        InferenceRule(VerbalRules[5], lambda i: i["busy"], "long time", True),
+        InferenceRule(VerbalRules[6], lambda i: i["long time"], "children", False),
+        InferenceRule(VerbalRules[7], lambda i: i["short time"], "children", True),
+        InferenceRule(VerbalRules[8], lambda i: i["busy"], "romantic", False),
+        InferenceRule(VerbalRules[9], lambda i: i["long time"], "romantic", True),
+        InferenceRule(VerbalRules[10], lambda i: i["children"], "good for studying", False),
+        InferenceRule(VerbalRules[11], lambda i: i["children"], "good for meetings", False),
+        InferenceRule(VerbalRules[12], lambda i: i["spacious"] and i["good atmosphere"], "good for studying", True),
+        InferenceRule(VerbalRules[13], lambda i: i["seating outside"] and i["good atmosphere"], "romantic", True),
+        InferenceRule(VerbalRules[14], lambda i: i["spacious"] and i["long time"], "good for studying", True),
+        InferenceRule(VerbalRules[15], lambda i: i["spacious"] and i["long time"], "good for meetings", True),
+        InferenceRule(VerbalRules[16], lambda i: i["pricerange"] == "expensive" and i["short time"], "busy", False),
+        InferenceRule(VerbalRules[17], lambda i: i["pricerange"] == "moderate" and i["long time"], "good for studying", True),
+        InferenceRule(VerbalRules[18], lambda i: i["pricerange"] == "expensive" and i["long time"], "good for meetings", True),
+        InferenceRule(VerbalRules[19], lambda i: i["seating outside"] and i["spacious"] and i["long time"], "fast service", False),
+        InferenceRule(VerbalRules[20], lambda i: i["pricerange"] == "expensive" and i["good atmosphere"], "romantic", True),
+        InferenceRule(VerbalRules[21], lambda i: i["long time"], "short time", False),
+        InferenceRule(VerbalRules[22], lambda i: i["short time"], "long time", False)
     ]
 
 
