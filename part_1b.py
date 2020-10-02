@@ -123,6 +123,7 @@ class Restaurant:
             "good for meetings": None,
             "good for studying": None
         }
+        self.inferrence_history = []
         self.__apply_inferred_rules()
 
     def __apply_inferred_rules(self):
@@ -630,7 +631,7 @@ class DialogState:
             self.history.process_secondary_preferences(self.history.last_user_utterance)  # TODO change to SuggestREstaurant
 
         def determine_next_state(self):
-            return DialogState.SecondaryPreferencesAsked(self.history)
+            return DialogState.SuggestOption(self.history)
     
     class ConfirmNegateOrInquire(BaseState):
         def __init__(self, history):
@@ -676,9 +677,10 @@ class DialogState:
     
         def determine_next_state(self):
             if len(self.history.restaurants()) > 0:
-                # return DialogState.AskSecondaryPreference(self.history)
-                # return DialogState.SuggestOption(self.history)
-                return DialogState.SecondaryPreferencesAsked(self.history)
+                if self.history.secondary_preferences_asked:
+                    return DialogState.SecondaryPreferencesAsked(self.history)
+                else:
+                    return DialogState.AskSecondaryPreference(self.history)
             else:
                 return DialogState.OfferAlternativeOrChangePreference(self.history)
 
