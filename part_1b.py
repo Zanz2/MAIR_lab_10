@@ -818,6 +818,12 @@ class Inference:
         {"id": 20, "rule": "It has expensive food and good atmosphere so it is good for a romantic evening.\n"},
         {"id": 21, "rule": ""},
         {"id": 22, "rule": ""},
+        {"id": 23, "rule": "Its good for children so its not romantic.\n"},
+        {"id": 24, "rule": "It has a big beverage selection and good food, hence it is often busy.\n"},
+        {"id": 25, "rule": "Its good for studying so its good for meetings.\n"},
+        {"id": 26, "rule": "Its good for meetings so its good for studying.\n"},
+        {"id": 27, "rule": "It has fast service so people dont usually spend a long time.\n"},
+        {"id": 28, "rule": "Its expensive and has good atmosphere so people usually spend a long time.\n"},
     ]
 
     Rules = [
@@ -843,7 +849,13 @@ class Inference:
         InferenceRule(VerbalRules[19], lambda i: i["seating outside"] and i["spacious"] and i["long time"], "fast service", False),
         InferenceRule(VerbalRules[20], lambda i: i["pricerange"] == "expensive" and i["good atmosphere"], "romantic", True),
         InferenceRule(VerbalRules[21], lambda i: i["long time"], "short time", False),
-        InferenceRule(VerbalRules[22], lambda i: i["short time"], "long time", False)
+        InferenceRule(VerbalRules[22], lambda i: i["short time"], "long time", False),
+        InferenceRule(VerbalRules[23], lambda i: i["children"], "romantic", False),
+        InferenceRule(VerbalRules[24], lambda i: i["big beverage selection"] and i["busy"], "long time", True),
+        InferenceRule(VerbalRules[25], lambda i: i["good for studying"], "good for meetings", True),
+        InferenceRule(VerbalRules[26], lambda i: i["good for meetings"], "good for studying", False),
+        InferenceRule(VerbalRules[27], lambda i: i["fast service"], "long time", False),
+        InferenceRule(VerbalRules[28], lambda i: i["pricerange"] == "expensive" and i["good atmosphere"], "long time", True)
     ]
 
 
