@@ -36,7 +36,7 @@ class SentenceCleanser:
     
     @classmethod
     def cleanse(cls, utterance):
-        return cls.concat_dual_words(utterance.replace("'", "").lower())
+        return cls.concat_dual_words(utterance.replace("'", "").replace(";", "").replace(",", "").lower())
 
 
 # here we load the restaurant info and create a list with the restaurant data (including food, area, pricerange etc.)
@@ -109,40 +109,44 @@ class Restaurant:
             "phone": data_row[4],
             "addr": data_row[5],
             "postcode": data_row[6]}
-        self.sec_items = {
+        self.sec_items = {  # These are the secondary preferences from the dataset, more will be inferred.
             "good food": InferredProperty("good food", data_row[7]),
             "good atmosphere": InferredProperty("good atmosphere", data_row[8]),
             "big beverage selection": InferredProperty("big beverage selection", data_row[9]),
-            "spacious": InferredProperty("spacious", data_row[10])}
-        for item_value in ("spanish", "cheap", "moderate", "expensive"):
-            if self.items["food"] == item_value or self.items["pricerange"] == item_value:
-                self.sec_items[item_value] = InferredProperty(item_value, True)
+            "spaciousness": InferredProperty("spaciousness", data_row[10])}
         self.__apply_inferred_rules()
 
     def __apply_inferred_rules(self):
+        # We also add the priceranges and Spanish food as secondary preference data to do inferences on.
         for item_value in ("spanish", "cheap", "moderate", "expensive"):
-            if self.items["food"] == item_value or self.items["pricerange"] == item_value:
-                self.sec_items[item_value] = InferredProperty(item_value, True)
+            if self.items["food"] == item_value:
+                self.sec_items[item_value + " food"] = InferredProperty(item_value + " food", True)
+            elif self.items["pricerange"] == item_value:
+                self.sec_items[item_value + " prices"] = InferredProperty(item_value + " pricees", True)
         property_added = True
-        while property_added:
+        while property_added:  # Keep applying inference rules until nothing is derived.
             property_added = False
             for rule in Inference.rules:
-                if rule.consequent not in self.sec_items:
+                if rule.consequent not in self.sec_items:  # Only apply rule if we havent already derived the consequent
                     if rule.infere_rule(self):
                         property_added = True
 
     def __str__(self):
-        return f"{{'items': {str(self.items)}, 'sec_items': {str(self.sec_items)}}}"
+        return f"{{'items': {self.items}, 'sec_items': {self.sec_items}}}"
     
     def name(self):
         return self.items['restaurantname'].title()
 
     def score_secondaries(self, secondary_preferences):
+        # When we make a suggestion to the user, we give each possible restaurant a score base on their secondary preferences.
         pros = self.assess_secondaries(secondary_preferences, "pros")
         cons = self.assess_secondaries(secondary_preferences, "cons")
         return len(pros) - len(cons)
 
     def assess_secondaries(self, secondary_preferences, match_side):
+        # Here we determine ("pros") which secondary prefs of the user are satisfied by this restaurant. For "cons",
+        # these are the ones that satisfy the negation of their preference. Note that there may also be preferences
+        # that are not known for this restaurant.
         prefs = {cat: pref for cat, pref in secondary_preferences.items() if cat in self.sec_items}
         if match_side == "pros":
             return [self.sec_items[cat] for cat, pref in prefs.items() if pref == self.sec_items[cat].value]
@@ -177,20 +181,24 @@ class KeywordMatch:
                               "tasteful", "yummy", "delicious", "tasty"],
                 "good atmosphere": ["good atmosphere", "environment"],
                 "big beverage selection": ["big beverage selection", "drink list"],
-                "spacious": ["spacious", "roomy", "sizeable", "large space", "high-ceilinged"],
-                "busy": ["busy", "hectic"],
-                "long time": ["long time", "for hours"],
-                "short time": ["short time", "quick meal"],
-                "children": ["children" "child friendly", "childfriendly", "familyfriendly", "family friendly",
-                             "for the kids", "safe for children"],
-                "romantic": ["romantic", "idyllic", "charming", "idealistic", "picturesque"],
+                "spaciousness": ["spacious", "spaciousness", "roomy", "sizeable", "large space", "high-ceilinged"],
+                "busy atmosphere": ["busy", "busy", "hectic"],
+                "long waiting times": ["long time", "long waiting times", "for hours"],
+                "short waiting times": ["short time", "short waiting times", "quick meal"],
+                "child friendlyness": ["children" "child friendly", "childfriendly", "familyfriendly",
+                                       "family friendly", "for the kids", "safe for children", "child friendlyness"],
+                "romantic atmosphere": ["romantic atmosphere", "romantic", "idyllic", "charming", "idealistic",
+                                        "picturesque"],
                 "fast service": ["fast service", "swift service", "quick service", "rapid service"],
-                "seating outside": ["seating outside", "outdoor seating", "terrace", "outside", "garden"],
-                "good for meetings": ["good for meetings", "nice for meetings", "meeting", "conference", "gathering",
-                                      "convention", "summit", "get-together", "rendezvous"],
-                "good for studying": ["good for studying", "nice for studying", "place of education", "learning space"]
+                "outside seating": ["outside seating", "seating outside", "outdoor seating", "terrace", "outside",
+                                    "garden"],
+                "good meeting ambiance": ["good meeting ambiance", "good for meetings", "nice for meetings", "meeting",
+                                          "conference", "gathering", "convention", "summit", "get-together",
+                                          "rendezvous"],
+                "good study ambiance": ["good study ambiance", "good for studying", "nice for studying",
+                                        "place of education", "learning space"]
             },
-            "negations": ["shouldnt", "not", "dont", "wont", "arent", "cant"]
+            "negations": ["shouldnt", "not", "no", "dont", "wont", "arent", "cant"]
         }
         # The dontcare specifier we check with regular expressions, since they mostly consist of multiple words.
         self.dontcares = [r".*(^| )any($| ).*", r".*(^| )doesnt ?matter($| ).*", r".*(^| )dont ?care($| ).*"]
@@ -319,11 +327,10 @@ class SystemUtterance:
             "area": "What part of town do you have in mind?",
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
             "food": "What kind of food would you like?",
-            "secondaries": "Do you have any other wishes? Perhaps: good food / good atmosphere / big beverage "
-                           "selection / spacious / not busy / long time / \nshort time / children / romantic / "
-                           "fast service / seating outside / good for meetings / good for studying."
-        }
-    }
+            "secondaries": "Do you have any other wishes? Perhaps: 'good food'; 'good atmosphere'; 'big beverage "
+                           "selection'; 'spaciousness'; 'no busy atmosphere'; 'long waiting times'; \n'short waiting "
+                           "times'; 'child friendlyness'; 'romantic atmosphere'; 'fast service'; 'outside seating'; "
+                           "'good meeting ambiance'; 'good study ambiance'?"}}
 
     @classmethod
     def generate_combination(cls, preferences, utterance_type):
@@ -362,13 +369,13 @@ class SystemUtterance:
     @classmethod
     def suggest_restaurant(cls, restaurant, secondary_prefs):
         sentence = SystemUtterance.generate_combination(restaurant.items, "STATEMENT")
-        pros = restaurant.assess_secondaries(secondary_prefs, "pros")
-        cons = restaurant.assess_secondaries(secondary_prefs, "cons")
+        pros = restaurant.assess_secondaries(secondary_prefs, "pros")  # Satisfied secondary preferences.
+        cons = restaurant.assess_secondaries(secondary_prefs, "cons")  # Violated secondary preferences.
         pro_sentence, con_sentence, full_length_sentence = "", "", ""
         if len(pros) > 0:
-            pro_sentence = f"It's also " + cls.__combine([f"'{prop.name}'" for prop in pros]) + "."
+            pro_sentence = f"It also has " + cls.__combine([f"'{prop.name}'" for prop in pros]) + "."
         if len(cons) > 0:
-            con_sentence = f"However, it's not " + cls.__combine([f"'{prop.name}'" for prop in cons]) + "."
+            con_sentence = f"However, it doesn't have " + cls.__combine([f"'{prop.name}'" for prop in cons]) + "."
         sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence} {con_sentence}"
         no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
         if len(secondary_prefs) > 0:
@@ -376,10 +383,11 @@ class SystemUtterance:
             if len(no_info) > 0:
                 sentence += f"\n    -   We have no information on: {cls.__combine(no_info)}."
             for prop in pros + cons:
-                if len(prop.explained) == 0:
+                # For each pro and con we print the reasoning behind this conclusion.
+                if len(prop.explanation) == 0:
                     sentence += f"\n    -   It has {'' if prop.value else 'not '} '{prop.name}'."
                 else:
-                    sentence += f"\n    -   " + " ".join(f"({i + 1}) {ex}" for i, ex in enumerate(prop.explained))
+                    sentence += f"\n    -   " + " ".join(ex for ex in prop.explanation)
         return sentence
 
 
@@ -770,31 +778,36 @@ class Configurability:
 
 
 class InferredProperty:
-    def __init__(self, name, value, antecedent_inferences=None):
+    # Instances of this class are the secondary preferences. For example name="romantic atmosphere" and value=True.
+    def __init__(self, name, value, antecedent_inferences=None, rule_id=None):
         self.name = name
         self.value = value
-        self.explained = []
+        self.explanation = []  # This is a list of all reasoning done to reach the conclusion of this property.
         if antecedent_inferences is not None:
-            self.explained = [ex for antecedent in antecedent_inferences for ex in antecedent.explained]
-            inference_ant = " and ".join(f"'{a.name}'" for a in antecedent_inferences)
-            inference_con = f"{'' if self.value else 'not '}'{self.name}'"
-            self.explained.append(f"Because it has {inference_ant}: it has {inference_con}.")
+            # All reasoning behind all the antecedents are also reasons for this property.
+            self.explanation = [ex for antecedent in antecedent_inferences for ex in antecedent.explanation]
+            # And finally we add the last reasoning step, the one derived here.
+            inf_ant = " and ".join(f"'{a.name}'" for a in antecedent_inferences)
+            inf_neg = "has" if self.value else "doesn't have"
+            self.explanation.append(f"[Rule#{rule_id}] Because it has {inf_ant}: it {inf_neg} '{self.name}'.")
 
 
 class InferenceRule:
+    # Deriving of the secondary preferences is done via rules, each rule is an instance of this class.
     rule_id_counter = 0
 
     def __init__(self, antecedents, consequent, truth_value):
-        self.rule_id_counter += 1
-        self.rule_id = self.rule_id_counter
+        InferenceRule.rule_id_counter += 1
+        self.rule_id = InferenceRule.rule_id_counter
         self.antecedents = antecedents
         self.consequent = consequent
         self.truth_value = truth_value
 
     def infere_rule(self, restaurant):
-        if all(a in restaurant.sec_items and restaurant.sec_items[a] for a in self.antecedents):
+        # Each antecedent must already be a property of the restaurant, and furthermore is must be True.
+        if all(a in restaurant.sec_items and restaurant.sec_items[a].value for a in self.antecedents):
             properties = [restaurant.sec_items[a] for a in self.antecedents]
-            new_property = InferredProperty(self.consequent, self.truth_value, properties)
+            new_property = InferredProperty(self.consequent, self.truth_value, properties, self.rule_id)
             restaurant.sec_items[self.consequent] = new_property
             return True
         return False
@@ -802,35 +815,35 @@ class InferenceRule:
 
 class Inference:
     rules = [
-        InferenceRule(["big beverage selection", "good atmosphere"], "long time", True),
-        InferenceRule(["good food", "good atmosphere"], "busy", True),
-        InferenceRule(["good food", "cheap"], "busy", True),
-        InferenceRule(["fast service", "cheap"], "short time", True),
-        InferenceRule(["spanish"], "long time", True),
-        InferenceRule(["busy"], "long time", True),
-        InferenceRule(["long time"], "children", False),
-        InferenceRule(["short time"], "children", True),
-        InferenceRule(["busy"], "romantic", False),
-        InferenceRule(["long time"], "romantic", True),
-        InferenceRule(["children"], "good for studying", False),
-        InferenceRule(["children"], "good for meetings", False),
-        InferenceRule(["spacious", "good atmosphere"], "good for studying", True),
-        InferenceRule(["seating outside", "good atmosphere"], "romantic", True),
-        InferenceRule(["spacious", "long time"], "good for studying", True),
-        InferenceRule(["spacious", "long time"], "good for meetings", True),
-        InferenceRule(["expensive", "short time"], "busy", False),
-        InferenceRule(["moderate", "long time"], "good for studying", True),
-        InferenceRule(["expensive", "long time"], "good for meetings", True),
-        InferenceRule(["seating outside", "spacious", "long time"], "fast service", False),
-        InferenceRule(["expensive", "good atmosphere"], "romantic", True),
-        InferenceRule(["long time"], "short time", False),
-        InferenceRule(["short time"], "long time", False),
-        InferenceRule(["children"], "romantic", False),
-        InferenceRule(["big beverage selection", "busy"], "long time", True),
-        InferenceRule(["good for studying"], "good for meetings", True),
-        InferenceRule(["good for meetings"], "good for studying", False),
-        InferenceRule(["fast service"], "long time", False),
-        InferenceRule(["expensive", "good atmosphere"], "long time", True)]
+        InferenceRule(["big beverage selection", "good atmosphere"], "long waiting times", True),
+        InferenceRule(["good food", "good atmosphere"], "busy atmosphere", True),
+        InferenceRule(["good food", "cheap prices"], "busy atmosphere", True),
+        InferenceRule(["fast service", "cheap prices"], "short waiting times", True),
+        InferenceRule(["spanish food"], "long waiting times", True),
+        InferenceRule(["busy atmosphere"], "long waiting times", True),
+        InferenceRule(["long waiting times"], "child friendlyness", False),
+        InferenceRule(["short waiting times"], "child friendlyness", True),
+        InferenceRule(["busy atmosphere"], "romantic atmosphere", False),
+        InferenceRule(["long waiting times"], "romantic atmosphere", True),
+        InferenceRule(["child friendlyness"], "good study ambiance", False),
+        InferenceRule(["child friendlyness"], "good meeting ambiance", False),
+        InferenceRule(["spaciousness", "good atmosphere"], "good study ambiance", True),
+        InferenceRule(["outside seating", "good atmosphere"], "romantic atmosphere", True),
+        InferenceRule(["spaciousness", "long waiting times"], "good study ambiance", True),
+        InferenceRule(["spaciousness", "long waiting times"], "good meeting ambiance", True),
+        InferenceRule(["expensive prices", "short waiting times"], "busy atmosphere", False),
+        InferenceRule(["moderate prices", "long waiting times"], "good study ambiance", True),
+        InferenceRule(["expensive prices", "long waiting times"], "good meeting ambiance", True),
+        InferenceRule(["outside seating", "spaciousness", "long waiting times"], "fast service", False),
+        InferenceRule(["expensive prices", "good atmosphere"], "romantic atmosphere", True),
+        InferenceRule(["long waiting times"], "short waiting times", False),
+        InferenceRule(["short waiting times"], "long waiting times", False),
+        InferenceRule(["child friendlyness"], "romantic atmosphere", False),
+        InferenceRule(["big beverage selection", "busy atmosphere"], "long waiting times", True),
+        InferenceRule(["good study ambiance"], "good meeting ambiance", True),
+        InferenceRule(["good meeting ambiance"], "good study ambiance", False),
+        InferenceRule(["fast service"], "long waiting times", False),
+        InferenceRule(["expensive prices", "good atmosphere"], "long waiting times", True)]
 
 
 # load dialog_acts and restaurant_info, and begin chat with user.
