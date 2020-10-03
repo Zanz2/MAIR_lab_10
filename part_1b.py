@@ -774,7 +774,7 @@ class Configurability:
     # will be generated to make it seem more like a response by a human
     def delay_response(self, user_sentence, system_sentence):
         if self.use_timer and system_sentence is not None and user_sentence is not None:
-            time.sleep(0.01 * len(user_sentence) + 0.05 * len(system_sentence))
+            time.sleep(0.005 * len(user_sentence) + 0.025 * len(system_sentence))
 
 
 class InferredProperty:
