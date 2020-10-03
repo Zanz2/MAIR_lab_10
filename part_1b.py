@@ -594,7 +594,11 @@ class DialogState:
             super().__init__("SYSTEM", "Clarify", history)
 
         def generate_sentence(self):
-            return "Sorry, I didn't get that. Could you clarify that?"
+            clarifications = [
+                "Sorry, I didn't get that. Could you clarify that?",
+                "What do you mean by that? I didn't understand.",
+                "Could you please rephrase that? I didn't get it."]
+            return rnd.choice(clarifications)
 
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
