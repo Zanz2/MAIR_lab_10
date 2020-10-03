@@ -366,12 +366,15 @@ class SystemUtterance:
     @classmethod
     def offer_alternatives(cls, preferences, alternatives):
         prefs = SystemUtterance.generate_combination(preferences, "DESCRIPTION")
-        sentence = f"I'm sorry, there are no restaurants that are {prefs}. But we have some other recommendations: "
-        for i, a in enumerate(alternatives):
-            description = SystemUtterance.generate_combination(a.items, "STATEMENT")
-            sentence += f"\n    {i}. {a.name()}: {description}"
-        sentence += "\nPlease select one of these numbers or change your preferences a bit."
-        return sentence
+        sentence = f"I'm sorry, there are no restaurants that are {prefs}. "
+        if len(alternatives) > 0:
+            sentence += "But we have some other recommendations: "
+            for i, a in enumerate(alternatives):
+                description = SystemUtterance.generate_combination(a.items, "STATEMENT")
+                sentence += f"\n    {i}. {a.name()}: {description}"
+            sentence += "\nPlease select one of these numbers or change your preferences a bit."
+            return sentence
+        return f"{sentence}Regrettably there are also no similar alternatives. Please change your preferences a bit."
 
     @classmethod
     def suggest_restaurant(cls, restaurant, secondary_prefs):
