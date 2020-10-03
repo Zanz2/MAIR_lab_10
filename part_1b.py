@@ -366,12 +366,15 @@ class SystemUtterance:
     @classmethod
     def offer_alternatives(cls, preferences, alternatives):
         prefs = SystemUtterance.generate_combination(preferences, "DESCRIPTION")
-        sentence = f"I'm sorry, there are no restaurants that are {prefs}. But we have some other recommendations: "
-        for i, a in enumerate(alternatives):
-            description = SystemUtterance.generate_combination(a.items, "STATEMENT")
-            sentence += f"\n    {i}. {a.name()}: {description}"
-        sentence += "\nPlease select one of these numbers or change your preferences a bit."
-        return sentence
+        sentence = f"I'm sorry, there are no restaurants that are {prefs}. "
+        if len(alternatives) > 0:
+            sentence += "But we have some other recommendations: "
+            for i, a in enumerate(alternatives):
+                description = SystemUtterance.generate_combination(a.items, "STATEMENT")
+                sentence += f"\n    {i}. {a.name()}: {description}"
+            sentence += "\nPlease select one of these numbers or change your preferences a bit."
+            return sentence
+        return f"{sentence}Regrettably there are also no similar alternatives. Please change your preferences a bit."
 
     @classmethod
     def suggest_restaurant(cls, restaurant, secondary_prefs):
@@ -632,9 +635,8 @@ class DialogState:
             super().__init__("USER", "ExpressSecondaryPreference", history)
 
         def process_user_act(self, speech_act):
-            # This processes the sentence instead of the act, because the acts
-            # of secondary preferences are usually very varied or even null
-            self.history.process_secondary_preferences(self.history.last_user_utterance)  # TODO change to SuggestREstaurant
+            # This processes the utterance instead of the act (this is not according to the dialog_acts classifier).
+            self.history.process_secondary_preferences(self.history.last_user_utterance)
 
         def determine_next_state(self):
             return DialogState.SuggestOption(self.history)
@@ -683,10 +685,7 @@ class DialogState:
     
         def determine_next_state(self):
             if len(self.history.restaurants()) > 0:
-                if self.history.secondary_preferences_asked:
-                    return DialogState.SecondaryPreferencesAsked(self.history)
-                else:
-                    return DialogState.AskSecondaryPreference(self.history)
+                return DialogState.SecondaryPreferencesAsked(self.history)
             else:
                 return DialogState.OfferAlternativeOrChangePreference(self.history)
 
