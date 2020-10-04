@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
 import seaborn as sn
+import pickle as pkl
 import operator
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
+from os import listdir
 
 
 # preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
@@ -129,7 +131,8 @@ def count_prediction_accuracies(true_labels, predicted_labels):
     return {"true_pos": true_pos, "true_neg": true_neg, "false_pos": false_pos, "false_neg": false_neg}
 
 
-# we define a function to calculate precision, this is done by dividing the true positives by the total amount of positives (the percentage of correctly assigned positives)
+# Evaluation metric: we define a function to calculate precision, this is done by dividing the true positives by the
+# total amount of positives (the percentage of correctly assigned positives).
 def calculate_precision(true_labels, predicted_labels):
     counts = count_prediction_accuracies(true_labels, predicted_labels)
     if counts["true_pos"] == 0 and counts["false_pos"] == 0:
@@ -137,7 +140,8 @@ def calculate_precision(true_labels, predicted_labels):
     return counts["true_pos"] / (counts["true_pos"] + counts["false_pos"])
 
 
-# we define a function to calculate recall, which is done by dividing the true positives by the total amount of correct predictions
+# Evaluation metric: we define a function to calculate recall, which is done by dividing the true positives by the total
+# amount of correct predictions.
 def calculate_recall(true_labels, predicted_labels):
     counts = count_prediction_accuracies(true_labels, predicted_labels)
     if counts["true_pos"] == 0 and counts["false_neg"] == 0:
@@ -145,7 +149,7 @@ def calculate_recall(true_labels, predicted_labels):
     return counts["true_pos"] / (counts["true_pos"] + counts["false_neg"])
 
 
-# function to calculate f1-score, which is a generalised version of precision and recall
+# Evaluation metric: function to calculate f1-score, which is a generalised version of precision and recall.
 def calculate_f1score(true_labels, predicted_labels):
     precision = calculate_precision(true_labels, predicted_labels)
     recall = calculate_recall(true_labels, predicted_labels)
@@ -210,14 +214,14 @@ def plot_confusion_matrix(true_labels, predicted_labels, unique_labels, name):
     return fig
 
 
-# we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
+# Baseline 1: we define a majority classiefier, which finds the most commonly occurring label - the majority class - and assigns it to every sentence
 def majority_classifier(data, dataset):
     majority_class = max(data.trainset.occurrences.items(), key=operator.itemgetter(1))[0]  # Here it returns the dialogue act that occurs the most times, in this case "inform"
     predictions = [majority_class for _ in range(len(dataset))]
     return predictions
 
 
-# we define a rule based classifier, in which we connect utterances to labels, such as 'how about' to the 'reqalts' label
+# Baseline 2: we define a rule based classifier, in which we connect utterances to labels, such as 'how about' to the 'reqalts' label
 def rule_based(_, dataset):
     # This is a dictionary with values as the dialogue act and keys as the text to be looked for
     # (example: if sentance contains 'is there' we classify it as reqalts dialogue act)
@@ -256,38 +260,39 @@ def rule_based(_, dataset):
     return predictions
 
 
-# we define a decision tree, through the scikit predefined functions, learns simple decision rules inferred from data features
-# we set the mas depth at 30 to avoid overfitting.
+# Alternative classifier 1: we define a decision tree, through the scikit predefined functions, learns simple decision
+# rules inferred from data features we set the mas depth at 30 to avoid overfitting.
 def decision_tree(data, dataset):  # https://scikit-learn.org/stable/modules/tree.html
     clf = tree.DecisionTreeClassifier(criterion="entropy", splitter="best", max_depth=30)
     # I set criterion as entropy and split as best, so hopefully it will split on inform class
     # https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier
-    # cashed_clf is the trained classifier
-    cashed_clf = data.get_fitted_classifier("decisiontree", clf, data.trainset.vectorized, data.trainset.labels)
+    # cached_clf is the trained classifier
+    cached_clf = data.get_fitted_classifier("decisiontree", clf, data.trainset.vectorized, data.trainset.labels)
     # tree.plot_tree(clf, fontsize=5)  # This will plot the graph if you uncomment it
     # plt.show()
-    return [r for r in cashed_clf.predict(dataset)]
+    return [r for r in cached_clf.predict(dataset)]
 
 
-# we define a feedforward neural network , through the scikit predefined function, trains on dataset and then tested on validation set
-# we opt for the solver because of the improvement in speed
+# Alternative classifier 2: define a feedforward neural network , through the scikit predefined function, trains on
+# dataset and then tested on validation set we opt for the solver because of the improvement in speed
 def ff_nn(data, dataset):  # feed forward neural network https://scikit-learn.org/stable/modules/neural_networks_supervised.html
     clf = MLPClassifier(solver='adam', alpha=0.001, random_state=1, early_stopping=False)  # will stop early if small validation subset isnt improving while training
-    # cashed_clf is the trained classifier (if it still needs to be trained, then it takes a minute or so, depending on your pc)
-    cashed_clf = data.get_fitted_classifier("neuralnet", clf, data.trainset.vectorized, data.trainset.labels)
-    return [r for r in cashed_clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
+    # cached_clf is the trained classifier (if it still needs to be trained, then it takes a minute or so, depending on your pc)
+    cached_clf = data.get_fitted_classifier("neuralnet", clf, data.trainset.vectorized, data.trainset.labels)
+    return [r for r in cached_clf.predict(dataset)]  # Accuracy is 0.9866 on validation sets
 
 
-# stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it performs relatively well like that except for some minority classes
+# Alternative classifier 3: stochastic gradient descent is a linear optimisation technique, we pick 20 iterations, it
+# performs relatively well like that except for some minority classes
 def sto_gr_des(data, dataset):  # stochastic gradient descent https://scikit-learn.org/stable/modules/sgd.html
     clf = SGDClassifier(loss="modified_huber", penalty="l2", max_iter=20, early_stopping=False)  # requires a mix_iter (maximum of iterations) of at least 7
     # loss could be different loss-functions that measures models fits. I chose modified_huber (smoothed hinge-loss) since it leads to the highest accuracy (could be changed with regards to other eval-methods)
     # penalty penalizes model complexity
-    cashed_clf = data.get_fitted_classifier("sgradientdescent", clf, data.trainset.vectorized, data.trainset.labels)
-    return [r for r in cashed_clf.predict(dataset)]  # accuracy of ~97%
+    cached_clf = data.get_fitted_classifier("sgradientdescent", clf, data.trainset.vectorized, data.trainset.labels)
+    return [r for r in cached_clf.predict(dataset)]  # accuracy of ~97%
 
 
-# we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
+# Evaluation: we define a dictionary in which we save the metrics (precision, recall and f1score) of our models
 # once stored, we plot a graph to visualise performance across models
 def comparison_evaluation(data):
     predictions = {
@@ -417,5 +422,52 @@ def main():
             break
 
 
+def fit_nn(data, clf, save=None):
+    clf.fit(data.trainset.vectorized, data.trainset.labels)
+    predictions = [r for r in clf.predict(data.devset.vectorized)]
+    print_evaluation_metrics(data.devset.labels, predictions, data.devset.occurrences, str(save))
+    if save is not None:
+        with open(f"trained_classifiers\\{save}", "wb") as save_file:
+            pkl.dump(clf, save_file)
+
+
+def fit_nn_hyperparameter_variations(data):
+    learning_rate_inits = [0.01, 0.001, 0.0001]
+    learning_rates = ["constant", "adaptive"]
+    hidden_layer_sizes = [(100,), (50, 50), (20, 20, 20), (80, 40, 20, 10)]
+    alphas = [0.001, 0.0001, 0.00001]
+    for learning_rate_init in learning_rate_inits:
+        for learning_rate in learning_rates:
+            for hidden_layer_size in hidden_layer_sizes:
+                for alpha in alphas:
+                    lsize = 'x'.join(str(i) for i in hidden_layer_size)
+                    save_name = f"{learning_rate_init}_{learning_rate}_{lsize}_{alpha}"
+                    clf = MLPClassifier(solver="adam", learning_rate_init=learning_rate_init, alpha=alpha, max_iter=200,
+                                        learning_rate=learning_rate, hidden_layer_sizes=hidden_layer_size)
+                    fit_nn(data, clf, save=save_name)
+
+
+def compare_nn_versions(data):
+    classifiers = []
+    for file in listdir("trained_classifiers\\"):
+        with open(f"trained_classifiers\\{file}", "rb") as saved_file:
+            clf = pkl.load(saved_file)
+        pred = [r for r in clf.predict(data.devset.vectorized)]
+        accuracy = calculate_accuracy(data.devset.labels, pred)
+        meanf1score = calculate_multiclassf1score(data.devset.labels, pred, data.devset.occurrences, weighted=False)
+        weightedf1score = calculate_multiclassf1score(data.devset.labels, pred, data.devset.occurrences, weighted=True)
+        classifiers.append((file, accuracy, meanf1score, weightedf1score))
+    for i, m in enumerate(("ACCURACY", "MEANF1SCORE", "WEIGHTEDF1SCORE")):
+        classifiers.sort(key=lambda c: -c[i + 1])
+        print(f"\nSORTED BY {m}:")
+        print("\n".join(f"{c[0]:50}: {c[1]:.4f}{' ' * 10}{c[2]:.4f}{' ' * 10}{c[3]:.4f}" for c in classifiers))
+
+
+def main2():
+    data = DataElements("dialog_acts.dat")
+    # fit_nn_hyperparameter_variations(data)
+    compare_nn_versions(data)
+
+
 if __name__ == "__main__":
-    main()
+    main2()

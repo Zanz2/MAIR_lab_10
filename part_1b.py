@@ -68,7 +68,9 @@ class RestaurantInfo:
             row = [SentenceCleanser.concat_dual_words(column) for column in row]
             restaurants.append(Restaurant(row))
         return restaurants
-    
+
+    # LOOKUP FUNCTION: All restaurant data is stored in self.restaurants. This query returns those restaurants, that
+    # satisfy the user preferences.
     def query_selection(self, preferences):
         # Return all restaurants that satisfy the conditions in preferences.
         selection = [r for r in self.restaurants]
@@ -76,7 +78,9 @@ class RestaurantInfo:
             if preference not in (None, "dontcare"):
                 selection = [r for r in selection if r.items[category] == preference]
         return selection
-    
+
+    # LOOKUP ALTERNATIVES FUNCTION: This separate query returns the restaurants that satisfy the user's preferences,
+    # but also those that are similar, according to the definitions in self.sets.
     def query_alternatives(self, preferences):
         # Return all restaurants that whose values are members of the same set as the specified preference.
         alternatives = []
@@ -238,6 +242,7 @@ class KeywordMatch:
         return None
 
     def keyword_match_pref(self, user_utterance):
+        # IDENTIFYING USER PREFERENCES:
         # this method will check whether the user mentions a word that matches with a word from the csv file
         # it also checks words that are misspelled with help of the check_levenshtein method
         # it returns a dictionary with preferences for foodtype, area and pricerange
@@ -525,6 +530,8 @@ class DialogState:
             super().__init__("SYSTEM", "OfferAlternativeOrChangePreference", history)
         
         def generate_sentence(self):
+            # ALTERNATIVE SUGGESTIONS: Offer the 'similar' alternatives. (Additionaly, the user could also specify
+            # a change of preference.)
             alternatives = self.history.alternatives(5)
             return SystemUtterance.offer_alternatives(self.history.preferences, alternatives)
         
@@ -567,10 +574,8 @@ class DialogState:
             self.history.last_suggestion = options[-1]  # Choose restaurant with highest score_secondaries().
         
         def generate_sentence(self):
-            restaurant = self.history.last_suggestion
-            secondaries = self.history.secondary_preferences
-            show_reasoning = self.history.configurability.show_reasoning
-            return SystemUtterance.suggest_restaurant(restaurant, secondaries, show_reasoning)
+            return SystemUtterance.suggest_restaurant(self.history.last_suggestion, self.history.secondary_preferences,
+                                                      self.history.configurability.show_reasoning)
 
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -696,6 +701,8 @@ class DialogState:
             super().__init__("EVAL", "SuggestionAvailable", history)
     
         def determine_next_state(self):
+            # DATABASE SATISFYABILITY: Here we check if there are any options that satisfy the user's preferences at
+            # all. If not, dialog flow will be redirected to OfferAlternativeOrChangePreference.
             if len(self.history.restaurants()) > 0:
                 return DialogState.SecondaryPreferencesAsked(self.history)
             else:
@@ -742,11 +749,13 @@ class DialogState:
                 return DialogState.Clarify(self.history)
 
 
+# This class handles the transitioning of state to state. It contains the important 'transition' function.
 class Transitioner:
     def __init__(self, data_elements, restaurant_info):
         self.data_elements = data_elements
         self.matcher = KeywordMatch(restaurant_info)
 
+    # This calculates the next state (dependend on the current state). Also (if appropriate) it give a system response.
     def transition(self, current_state, utterance):
         system_sentence = None
         if current_state.state_type == "SYSTEM":
@@ -777,7 +786,7 @@ class Transitioner:
         return SpeechAct(predicted)
 
 
-# Configurability feature class:
+# CONFIGURABILITY: Here the configs are stored and related functionality is defined.
 class Configurability:
     def __init__(self, use_timer=False, show_reasoning=True):
         self.use_timer = use_timer
@@ -826,6 +835,7 @@ class InferenceRule:
         return False
 
 
+# IMPLICATION RULES: Here all the rules for inference are defined.
 class Inference:
     rules = [
         InferenceRule(["big beverage selection", "good atmosphere"], "long waiting times", True),
