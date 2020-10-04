@@ -352,7 +352,14 @@ class SystemUtterance:
     @classmethod
     def ask_information(cls, category):
         return cls.TEMPLATES["QUESTION"][category]
-    
+
+    @classmethod
+    def provide_info(cls, restaurant, requests):
+        if len(requests) == 0:  # If no requests have been identified, just give all contact info.
+            requests = ["addr", "postcode", "phone"]
+        infos = [f"the {request} is '{restaurant.items[request]}'" for request in requests]
+        return f"{restaurant.name()} is a nice restaurant, {cls.__combine(infos)}."
+
     @classmethod
     def offer_alternatives(cls, preferences, alternatives):
         prefs = SystemUtterance.generate_combination(preferences, "DESCRIPTION")
@@ -374,10 +381,10 @@ class SystemUtterance:
         cons = restaurant.assess_secondaries(secondary_prefs, "cons")  # Violated secondary preferences.
         pro_sentence, con_sentence, full_length_sentence = "", "", ""
         if len(pros) > 0:  # List the user's secondory preferences that are satisfied by this restaurant.
-            pro_sentence = f"It also has " + cls.__combine([f"'{prop.name}'" for prop in pros]) + "."
+            pro_sentence = f"It also has " + cls.__combine([f"'{prop.name}'" for prop in pros]) + ". "
         if len(cons) > 0:  # And those that are violated by this restaurant.
             con_sentence = f"However, it doesn't have " + cls.__combine([f"'{prop.name}'" for prop in cons]) + "."
-        sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence} {con_sentence}"
+        sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence}{con_sentence}"
         # Now list the reasoning for each secondary preference (for some we have no information for this restaurant).
         if show_reasoning:
             no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
@@ -585,13 +592,7 @@ class DialogState:
             super().__init__("SYSTEM", "ProvideDetails", history)
         
         def generate_sentence(self):
-            suggestion = self.history.last_suggestion
-            requests = self.history.get_requests()
-            if len(requests) == 0:  # If no requests have been identified, just give all contact info.
-                requests = ["addr", "postcode", "phone"]
-            specs = [f"the {req} is {suggestion.items[req]}" for req in requests]
-            specs[-1] = "and " + specs[-1]
-            return f"{suggestion.name()} is a nice restaurant, {', '.join(specs)}."
+            return SystemUtterance.provide_info(self.history.last_suggestion, self.history.get_requests())
         
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
