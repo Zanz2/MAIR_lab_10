@@ -122,7 +122,7 @@ class Restaurant:
             if self.items["food"] == item_value:
                 self.sec_items[item_value + " food"] = InferredProperty(item_value + " food", True)
             elif self.items["pricerange"] == item_value:
-                self.sec_items[item_value + " prices"] = InferredProperty(item_value + " pricees", True)
+                self.sec_items[item_value + " prices"] = InferredProperty(item_value + " prices", True)
         property_added = True
         while property_added:  # Keep applying inference rules until nothing is derived.
             property_added = False
@@ -367,33 +367,37 @@ class SystemUtterance:
         return f"{sentence}Regrettably there are also no similar alternatives. Please change your preferences a bit."
 
     @classmethod
-    def suggest_restaurant(cls, restaurant, secondary_prefs):
+    def suggest_restaurant(cls, restaurant, secondary_prefs, show_reasoning):
+        # First part of the sentence is just a summary of the chosen restaurant.
         sentence = SystemUtterance.generate_combination(restaurant.items, "STATEMENT")
         pros = restaurant.assess_secondaries(secondary_prefs, "pros")  # Satisfied secondary preferences.
         cons = restaurant.assess_secondaries(secondary_prefs, "cons")  # Violated secondary preferences.
         pro_sentence, con_sentence, full_length_sentence = "", "", ""
-        if len(pros) > 0:
+        if len(pros) > 0:  # List the user's secondory preferences that are satisfied by this restaurant.
             pro_sentence = f"It also has " + cls.__combine([f"'{prop.name}'" for prop in pros]) + "."
-        if len(cons) > 0:
+        if len(cons) > 0:  # And those that are violated by this restaurant.
             con_sentence = f"However, it doesn't have " + cls.__combine([f"'{prop.name}'" for prop in cons]) + "."
         sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence} {con_sentence}"
-        no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
-        if len(secondary_prefs) > 0:
-            sentence += "\n    Reasoner:"
-            if len(no_info) > 0:
-                sentence += f"\n    -   We have no information on: {cls.__combine(no_info)}."
-            for prop in pros + cons:
-                # For each pro and con we print the reasoning behind this conclusion.
-                if len(prop.explanation) == 0:
-                    sentence += f"\n    -   It has {'' if prop.value else 'not '} '{prop.name}'."
-                else:
-                    sentence += f"\n    -   " + " ".join(ex for ex in prop.explanation)
+        # Now list the reasoning for each secondary preference (for some we have no information for this restaurant).
+        if show_reasoning:
+            no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
+            if len(secondary_prefs) > 0:
+                sentence += "\n    Reasoner:"
+                if len(no_info) > 0:
+                    sentence += f"\n    -   We have no information on: {cls.__combine(no_info)}."
+                for prop in pros + cons:
+                    # For each pro and con we print the reasoning behind this conclusion.
+                    if len(prop.explanation) == 0:
+                        sentence += f"\n    -   It has {'' if prop.value else 'not '} '{prop.name}'."
+                    else:
+                        sentence += f"\n    -   " + " ".join(ex for ex in prop.explanation)
         return sentence
 
 
 class DialogHistory:
-    def __init__(self, restaurant_info):
+    def __init__(self, restaurant_info, configurability):
         self.restaurant_info = restaurant_info
+        self.configurability = configurability
         self.matcher = KeywordMatch(restaurant_info)
         self.preferences = {"pricerange": None, "area": None, "food": None}
         self.secondary_preferences = {}
@@ -556,7 +560,10 @@ class DialogState:
             self.history.last_suggestion = options[-1]  # Choose restaurant with highest score_secondaries().
         
         def generate_sentence(self):
-            return SystemUtterance.suggest_restaurant(self.history.last_suggestion, self.history.secondary_preferences)
+            restaurant = self.history.last_suggestion
+            secondaries = self.history.secondary_preferences
+            show_reasoning = self.history.configurability.show_reasoning
+            return SystemUtterance.suggest_restaurant(restaurant, secondaries, show_reasoning)
 
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -771,8 +778,9 @@ class Transitioner:
 
 # Configurability feature class:
 class Configurability:
-    def __init__(self, use_timer=False):
+    def __init__(self, use_timer=False, show_reasoning=True):
         self.use_timer = use_timer
+        self.show_reasoning = show_reasoning
 
     # Time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
     # will be generated to make it seem more like a response by a human
@@ -855,9 +863,9 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
-    history = DialogHistory(restaurant_info)
+    config = Configurability(use_timer=False, show_reasoning=False)
+    history = DialogHistory(restaurant_info, config)
     state = DialogState.Welcome(history)
-    config = Configurability(False)
     while state is not None:
         utterance = None
         if state.state_type == "USER":
