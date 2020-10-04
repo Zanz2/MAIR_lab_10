@@ -8,7 +8,7 @@ from sklearn import tree
 import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
-from os import listdir
+from os import listdir, path
 
 
 # preparing the data, splitting the labels from the sentences, using a vectorizer to be able to process data
@@ -70,7 +70,6 @@ class DataElements:
     
     # calculate the average amount of words of the given sentences
     def average_sentence_length(self):
-        total_words = 0
         total_words = sum(len(sentence.split(" ")) for sentence in self.fullset.sentences)
         return total_words / len(self.fullset.sentences)
     
@@ -91,17 +90,14 @@ class DataElements:
             words = utterance.split(" ")
             for word in words:
                 if word not in trainset_voc and word not in out_of_voc_testset:
-                    out_of_voc_testset.append(word) 
-            
-        print(f"""in devset and not in trainset: {out_of_voc_devset} \n
-in testset and not in trainset: {out_of_voc_testset}""")
-     
-   
-# uncomment the 4 comments below for statistics on the data
-# data_forstatistics = DataElements("dialog_acts.dat")
-# print(data_forstatistics.fullset.occurrences)
-# print("Average sentence length: ", data_forstatistics.average_sentence_length())
-# data_forstatistics.out_of_vocabulary()
+                    out_of_voc_testset.append(word)
+        print(f"In devset and not in trainset: {out_of_voc_devset}")
+        print(f"In testset and not in trainset: {out_of_voc_testset}")
+
+    def print_statistics(self):
+        print(self.fullset.occurrences)
+        print("Average sentence length: ", self.average_sentence_length())
+        self.out_of_vocabulary()
 
 
 # we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
@@ -373,101 +369,118 @@ def predict_sentence(data, supplied_text, classifier, vectorize=True):
     return predicted_label
 
 
+class NeuralNetTuner:
+    # This class contains a couple of methods that have helped us in finding the right parameters for our classifier.
+    @staticmethod
+    def fit_nn(data, clf, save=None):
+        # Train an MLP classifier and save it in the 'trained_classiffiers' directory.
+        clf.fit(data.trainset.vectorized, data.trainset.labels)
+        predictions = [r for r in clf.predict(data.devset.vectorized)]
+        print_evaluation_metrics(data.devset.labels, predictions, data.devset.occurrences, str(save))
+        if save is not None:
+            with open(f"trained_classifiers\\{save}", "wb") as save_file:
+                pkl.dump(clf, save_file)
+
+    @classmethod
+    def fit_nn_hyperparameter_variations(cls, data, selection_round, threshold, max_iter, tol):
+        # Train a range of different classifiers: with varying learning rates and different structures for the hidden layers.
+        learning_rate_inits = [0.01, 0.001, 0.0001]
+        learning_rates = ["constant", "adaptive"]
+        hidden_layer_sizes = [(100,), (50, 50), (20, 20, 20), (80, 40, 20, 10)]
+        for learning_rate_init in learning_rate_inits:
+            for learning_rate in learning_rates:
+                for hidden_layer_size in hidden_layer_sizes:
+                    lsize = "x".join(str(i) for i in hidden_layer_size)
+                    save_name = f"{learning_rate_init}_{learning_rate}_{lsize}"
+                    if selection_round == 1:
+                        clf = MLPClassifier(solver="adam", learning_rate_init=learning_rate_init, alpha=0.001,
+                                            max_iter=200, learning_rate=learning_rate,
+                                            hidden_layer_sizes=hidden_layer_size)
+                        cls.fit_nn(data, clf, save=f"r1_{save_name}")
+                    else:
+                        old_file = f"trained_classifiers\\r{selection_round - 1}_{save_name}"
+                        if path.exists(old_file):
+                            with open(old_file, "rb") as saved_file:
+                                clf = pkl.load(saved_file)
+                            preds = [r for r in clf.predict(data.devset.vectorized)]
+                            meanf1 = calculate_multiclassf1score(data.devset.labels, preds, data.devset.occurrences,
+                                                                 weighted=False)
+                            if meanf1 > threshold:
+                                clf.set_params(max_iter=max_iter, tol=tol)
+                                cls.fit_nn(data, clf, save=f"r{selection_round}_{save_name}")
+
+    @staticmethod
+    def compare_nn_versions(data):
+        classifiers = []
+        dataset = data.devset
+        for file in listdir("trained_classifiers\\"):
+            with open(f"trained_classifiers\\{file}", "rb") as saved_file:
+                clf = pkl.load(saved_file)
+            pred = [r for r in clf.predict(dataset.vectorized)]
+            accuracy = calculate_accuracy(dataset.labels, pred)
+            meanf1score = calculate_multiclassf1score(dataset.labels, pred, dataset.occurrences, weighted=False)
+            weightedf1score = calculate_multiclassf1score(dataset.labels, pred, dataset.occurrences, weighted=True)
+            classifiers.append((file, accuracy, meanf1score, weightedf1score))
+        classifiers.sort(key=lambda c: -c[1] - c[2] - c[3])
+        for i, m in enumerate(("ACCURACY", "MEANF1SCORE", "WEIGHTEDF1SCORE")):
+            classifiers.sort(key=lambda c: -c[i + 1])
+            print(f"\nSORTED BY {m}:")
+            print("\n".join(f"{c[0]:50}: {c[1]:.4f}{' ' * 10}{c[2]:.4f}{' ' * 10}{c[3]:.4f}" for c in classifiers))
+
+
 # load dialog_acts, show options of interaction and display to user, process user request
-def main():
+def main(analyse=False):
     data_elements = DataElements("dialog_acts.dat")
-    while True:
-        print("Enter")
-        print("0 for exit")
-        print("1 for Majority classifier on test data")
-        print("2 for manual prediction on test data")
-        print("3 for Decision tree on test data")
-        print("4 for Feed forward neural network on test data")
-        print("5 for Stochastic gradient descent on test data")
-        print("1i for Majority classifier on user input")
-        print("2i for manual prediction on user input")
-        print("3i for Decision tree on user input")
-        print("4i for Feed forward neural network on user input")
-        print("5i for Stochastic gradient descent on user input")
-        print("c for Comparison Evaluation")
-        print("d to talk to with our recommender chatbot")
-        test_text = input()
-        command = str(test_text)
-        if command == "0":
-            break
-        elif command == "1":
-            analyse_validation(data_elements, majority_classifier, vectorize=False)
-        elif command == "2":
-            analyse_validation(data_elements, rule_based, vectorize=False)
-        elif command == "3":
-            analyse_validation(data_elements, decision_tree)
-        elif command == "4":
-            analyse_validation(data_elements, ff_nn)
-        elif command == "5":
-            analyse_validation(data_elements, sto_gr_des)
-        elif command == "1i":
-            interact(data_elements, majority_classifier, vectorize=False)
-        elif command == "2i":
-            interact(data_elements, rule_based, vectorize=False)
-        elif command == "3i":
-            interact(data_elements, decision_tree)
-        elif command == "4i":
-            interact(data_elements, ff_nn)
-        elif command == "5i":
-            interact(data_elements, sto_gr_des)
-        elif command == "c":
-            comparison_evaluation(data_elements)
-            break  # break out of loop to execute the plot.
-        else:
-            break
-
-
-def fit_nn(data, clf, save=None):
-    clf.fit(data.trainset.vectorized, data.trainset.labels)
-    predictions = [r for r in clf.predict(data.devset.vectorized)]
-    print_evaluation_metrics(data.devset.labels, predictions, data.devset.occurrences, str(save))
-    if save is not None:
-        with open(f"trained_classifiers\\{save}", "wb") as save_file:
-            pkl.dump(clf, save_file)
-
-
-def fit_nn_hyperparameter_variations(data):
-    learning_rate_inits = [0.01, 0.001, 0.0001]
-    learning_rates = ["constant", "adaptive"]
-    hidden_layer_sizes = [(100,), (50, 50), (20, 20, 20), (80, 40, 20, 10)]
-    alphas = [0.001, 0.0001, 0.00001]
-    for learning_rate_init in learning_rate_inits:
-        for learning_rate in learning_rates:
-            for hidden_layer_size in hidden_layer_sizes:
-                for alpha in alphas:
-                    lsize = 'x'.join(str(i) for i in hidden_layer_size)
-                    save_name = f"{learning_rate_init}_{learning_rate}_{lsize}_{alpha}"
-                    clf = MLPClassifier(solver="adam", learning_rate_init=learning_rate_init, alpha=alpha, max_iter=200,
-                                        learning_rate=learning_rate, hidden_layer_sizes=hidden_layer_size)
-                    fit_nn(data, clf, save=save_name)
-
-
-def compare_nn_versions(data):
-    classifiers = []
-    for file in listdir("trained_classifiers\\"):
-        with open(f"trained_classifiers\\{file}", "rb") as saved_file:
-            clf = pkl.load(saved_file)
-        pred = [r for r in clf.predict(data.devset.vectorized)]
-        accuracy = calculate_accuracy(data.devset.labels, pred)
-        meanf1score = calculate_multiclassf1score(data.devset.labels, pred, data.devset.occurrences, weighted=False)
-        weightedf1score = calculate_multiclassf1score(data.devset.labels, pred, data.devset.occurrences, weighted=True)
-        classifiers.append((file, accuracy, meanf1score, weightedf1score))
-    for i, m in enumerate(("ACCURACY", "MEANF1SCORE", "WEIGHTEDF1SCORE")):
-        classifiers.sort(key=lambda c: -c[i + 1])
-        print(f"\nSORTED BY {m}:")
-        print("\n".join(f"{c[0]:50}: {c[1]:.4f}{' ' * 10}{c[2]:.4f}{' ' * 10}{c[3]:.4f}" for c in classifiers))
-
-
-def main2():
-    data = DataElements("dialog_acts.dat")
-    # fit_nn_hyperparameter_variations(data)
-    compare_nn_versions(data)
+    if analyse:  # Analysis mode.
+        data_elements.print_statistics()
+        # NeuralNetTuner.fit_nn_hyperparameter_variations(data_elements, 2, 0.89, 10000, 0.000001)
+        NeuralNetTuner.compare_nn_versions(data_elements)
+    else:
+        while True:
+            print("Enter")
+            print("0 for exit")
+            print("1 for Majority classifier on test data")
+            print("2 for manual prediction on test data")
+            print("3 for Decision tree on test data")
+            print("4 for Feed forward neural network on test data")
+            print("5 for Stochastic gradient descent on test data")
+            print("1i for Majority classifier on user input")
+            print("2i for manual prediction on user input")
+            print("3i for Decision tree on user input")
+            print("4i for Feed forward neural network on user input")
+            print("5i for Stochastic gradient descent on user input")
+            print("c for Comparison Evaluation")
+            print("d to talk to with our recommender chatbot")
+            test_text = input()
+            command = str(test_text)
+            if command == "0":
+                break
+            elif command == "1":
+                analyse_validation(data_elements, majority_classifier, vectorize=False)
+            elif command == "2":
+                analyse_validation(data_elements, rule_based, vectorize=False)
+            elif command == "3":
+                analyse_validation(data_elements, decision_tree)
+            elif command == "4":
+                analyse_validation(data_elements, ff_nn)
+            elif command == "5":
+                analyse_validation(data_elements, sto_gr_des)
+            elif command == "1i":
+                interact(data_elements, majority_classifier, vectorize=False)
+            elif command == "2i":
+                interact(data_elements, rule_based, vectorize=False)
+            elif command == "3i":
+                interact(data_elements, decision_tree)
+            elif command == "4i":
+                interact(data_elements, ff_nn)
+            elif command == "5i":
+                interact(data_elements, sto_gr_des)
+            elif command == "c":
+                comparison_evaluation(data_elements)
+                break  # break out of loop to execute the plot.
+            else:
+                break
 
 
 if __name__ == "__main__":
-    main2()
+    main(True)

@@ -754,6 +754,8 @@ class Transitioner:
     def __init__(self, data_elements, restaurant_info):
         self.data_elements = data_elements
         self.matcher = KeywordMatch(restaurant_info)
+        with open(f"trained_classifiers\\r1_0.001_constant_50x50", "rb") as clf_file:
+            self.classifier = pkl.load(clf_file)
 
     # This calculates the next state (dependend on the current state). Also (if appropriate) it give a system response.
     def transition(self, current_state, utterance):
@@ -773,7 +775,7 @@ class Transitioner:
     def utterance_to_speech_act(self, utterance):
         # Classify the user input with the SGD classifier from part 1a.
         vector = self.data_elements.vectorizer.transform([utterance])
-        predicted = sto_gr_des(self.data_elements, vector)[0]
+        predicted = [p for p in self.classifier.predict(vector)][0]
         if predicted in ("inform", "reqalts"):
             # Include the found parameters for the 'inform' act (for 'reqalts' these are the same possible paramters).
             preferences = self.matcher.keyword_match_pref(utterance)
