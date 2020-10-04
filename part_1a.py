@@ -65,6 +65,41 @@ class DataElements:
             clf.fit(train_x, train_y)
             self.cached_clfs[classifier] = clf
         return self.cached_clfs[classifier]
+    
+    # calculate the average amount of words of the given sentences
+    def average_sentence_length(self):
+        total_words = 0
+        total_words = sum(len(sentence.split(" ")) for sentence in self.fullset.sentences)
+        return total_words / len(self.fullset.sentences)
+    
+    # check which words are not in the trainset, but do appear in the devset and testset 
+    def out_of_vocabulary(self):
+        trainset_voc, out_of_voc_devset, out_of_voc_testset = [], [], []
+        for utterance in self.trainset.sentences:
+            words = utterance.split(" ")
+            for word in words:
+                if word not in trainset_voc:
+                    trainset_voc.append(word)
+        for utterance in self.devset.sentences:
+            words = utterance.split(" ")
+            for word in words:
+                if word not in trainset_voc and word not in out_of_voc_devset:
+                    out_of_voc_devset.append(word)
+        for utterance in self.testset.sentences:
+            words = utterance.split(" ")
+            for word in words:
+                if word not in trainset_voc and word not in out_of_voc_testset:
+                    out_of_voc_testset.append(word) 
+            
+        print(f"""in devset and not in trainset: {out_of_voc_devset} \n
+in testset and not in trainset: {out_of_voc_testset}""")
+     
+   
+# uncomment the 4 comments below for statistics on the data
+# data_forstatistics = DataElements("dialog_acts.dat")
+# print(data_forstatistics.fullset.occurrences)
+# print("Average sentence length: ", data_forstatistics.average_sentence_length())
+# data_forstatistics.out_of_vocabulary()
 
 
 # we define a function to calculate the accuracy, this is done by returning the sum in which the actual labels match the predicted labels
