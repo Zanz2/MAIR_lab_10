@@ -864,7 +864,7 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
-    config = Configurability(use_timer=False, show_reasoning=False)
+    config = Configurability(use_timer=False, show_reasoning=True)
     history = DialogHistory(restaurant_info, config)
     state = DialogState.Welcome(history)
     while state is not None:
