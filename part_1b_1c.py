@@ -396,7 +396,7 @@ class SystemUtterance:
             if len(secondary_prefs) > 0:
                 sentence += "\n    Reasoner:"
                 if len(no_info) > 0:
-                    sentence += f"\n    -   We have no information on: {cls.__combine(no_info)}."
+                    sentence += f"\n    -   For this restaurant we have no information on: {cls.__combine(no_info)}."
                 for prop in pros + cons:
                     # For each pro and con we print the reasoning behind this conclusion.
                     if len(prop.explanation) == 0:
@@ -546,9 +546,11 @@ class DialogState:
         
         def generate_sentence(self):
             # First implicitly confirm the given preferences (if any), then ask the chosen inquiry.
-            confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
-            if confirm != "":
-                confirm = f"Ok, {confirm}. "
+            confirm = ""
+            if self.history.configurability.confirm_implicitly:
+                confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
+                if confirm != "":
+                    confirm = f"Ok, {confirm}. "
             return f"{confirm}{SystemUtterance.ask_information(self.history.last_inquiry)}"
         
         def determine_next_state(self):
@@ -790,9 +792,10 @@ class Transitioner:
 
 # CONFIGURABILITY: Here the configs are stored and related functionality is defined.
 class Configurability:
-    def __init__(self, use_timer=False, show_reasoning=True):
+    def __init__(self, use_timer=False, show_reasoning=True, confirm_implicitly=True):
         self.use_timer = use_timer
         self.show_reasoning = show_reasoning
+        self.confirm_implicitly = confirm_implicitly
 
     # Time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
     # will be generated to make it seem more like a response by a human
@@ -876,7 +879,7 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
-    config = Configurability(use_timer=False, show_reasoning=True)
+    config = Configurability(use_timer=False, show_reasoning=True, confirm_implicitly=True)
     history = DialogHistory(restaurant_info, config)
     state = DialogState.Welcome(history)
     while state is not None:
