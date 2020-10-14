@@ -189,8 +189,8 @@ class KeywordMatch:
                 "busy atmosphere": ["busy", "busy", "hectic"],
                 "long waiting times": ["long time", "long waiting times", "for hours"],
                 "short waiting times": ["short time", "short waiting times", "quick meal"],
-                "child friendlyness": ["children" "child friendly", "childfriendly", "familyfriendly",
-                                       "family friendly", "for the kids", "safe for children", "child friendlyness"],
+                "child friendliness": ["children" "child friendly", "childfriendly", "familyfriendly",
+                                       "family friendly", "for the kids", "safe for children", "child friendliness"],
                 "romantic atmosphere": ["romantic atmosphere", "romantic", "idyllic", "charming", "idealistic",
                                         "picturesque"],
                 "fast service": ["fast service", "swift service", "quick service", "rapid service"],
@@ -332,9 +332,9 @@ class SystemUtterance:
             "area": "What part of town do you have in mind?",
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
             "food": "What kind of food would you like?",
-            "secondaries": "Do you have any other wishes? Perhaps: 'good food'; 'good atmosphere'; 'big beverage "
+            "secondaries": "Do you have any other wishes? Perhaps: 'good food'; 'good atmosphere'; 'large beverage "
                            "selection'; 'spaciousness'; 'no busy atmosphere'; 'long waiting times'; \n'short waiting "
-                           "times'; 'child friendlyness'; 'romantic atmosphere'; 'fast service'; 'outside seating'; "
+                           "times'; 'child friendliness'; 'romantic atmosphere'; 'fast service'; 'outside seating'; "
                            "'good meeting ambiance'; 'good study ambiance'?"}}
 
     @classmethod
@@ -379,20 +379,24 @@ class SystemUtterance:
         return f"{sentence}Regrettably there are also no similar alternatives. Please change your preferences a bit."
 
     @classmethod
-    def suggest_restaurant(cls, restaurant, secondary_prefs, show_reasoning):
+    def suggest_restaurant(cls, restaurant, secondary_prefs, config):
         # First part of the sentence is just a summary of the chosen restaurant.
         sentence = SystemUtterance.generate_combination(restaurant.items, "STATEMENT")
         pros = restaurant.assess_secondaries(secondary_prefs, "pros")  # Satisfied secondary preferences.
         cons = restaurant.assess_secondaries(secondary_prefs, "cons")  # Violated secondary preferences.
-        pro_sentence, con_sentence, full_length_sentence = "", "", ""
+        no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
+        pro_sentence, con_sentence, nfo_sentence, full_length_sentence = "", "", "", ""
         if len(pros) > 0:  # List the user's secondory preferences that are satisfied by this restaurant.
             pro_sentence = f"It also has " + cls.__combine([f"'{prop.name}'" for prop in pros]) + ". "
         if len(cons) > 0:  # And those that are violated by this restaurant.
-            con_sentence = f"However, it doesn't have " + cls.__combine([f"'{prop.name}'" for prop in cons]) + "."
-        sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {pro_sentence}{con_sentence}"
+            con_sentence = f"However, it doesn't have " + cls.__combine([f"'{prop.name}'" for prop in cons]) + ". "
+        if len(no_info) > 0:  # And those on which we have no info.
+            nfo_sentence = f"Regrettably, we don't know if it has " + cls.__combine([prop for prop in no_info]) + "."
+        confirmation = f"{pro_sentence}{con_sentence}{nfo_sentence}" if config.confirm_implicitly else ""
+        sentence = f"{restaurant.name()} is a nice restaurant: {sentence}. {confirmation}"
         # Now list the reasoning for each secondary preference (for some we have no information for this restaurant).
-        if show_reasoning:
-            no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
+        if config.show_reasoning:
+            # no_info = [f"'{p}'" for p in secondary_prefs if p not in [prop.name for prop in pros + cons]]
             if len(secondary_prefs) > 0:
                 sentence += "\n    Reasoner:"
                 if len(no_info) > 0:
@@ -577,7 +581,7 @@ class DialogState:
         
         def generate_sentence(self):
             return SystemUtterance.suggest_restaurant(self.history.last_suggestion, self.history.secondary_preferences,
-                                                      self.history.configurability.show_reasoning)
+                                                      self.history.configurability)
 
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -849,12 +853,12 @@ class Inference:
         InferenceRule(["fast service", "cheap prices"], "short waiting times", True),
         InferenceRule(["spanish food"], "long waiting times", True),
         InferenceRule(["busy atmosphere"], "long waiting times", True),
-        InferenceRule(["long waiting times"], "child friendlyness", False),
-        InferenceRule(["short waiting times"], "child friendlyness", True),
+        InferenceRule(["long waiting times"], "child friendliness", False),
+        InferenceRule(["short waiting times"], "child friendliness", True),
         InferenceRule(["busy atmosphere"], "romantic atmosphere", False),
         InferenceRule(["long waiting times"], "romantic atmosphere", True),
-        InferenceRule(["child friendlyness"], "good study ambiance", False),
-        InferenceRule(["child friendlyness"], "good meeting ambiance", False),
+        InferenceRule(["child friendliness"], "good study ambiance", False),
+        InferenceRule(["child friendliness"], "good meeting ambiance", False),
         InferenceRule(["spaciousness", "good atmosphere"], "good study ambiance", True),
         InferenceRule(["outside seating", "good atmosphere"], "romantic atmosphere", True),
         InferenceRule(["spaciousness", "long waiting times"], "good study ambiance", True),
@@ -866,7 +870,7 @@ class Inference:
         InferenceRule(["expensive prices", "good atmosphere"], "romantic atmosphere", True),
         InferenceRule(["long waiting times"], "short waiting times", False),
         InferenceRule(["short waiting times"], "long waiting times", False),
-        InferenceRule(["child friendlyness"], "romantic atmosphere", False),
+        InferenceRule(["child friendliness"], "romantic atmosphere", False),
         InferenceRule(["large beverage selection", "busy atmosphere"], "long waiting times", True),
         InferenceRule(["good study ambiance"], "good meeting ambiance", True),
         InferenceRule(["good meeting ambiance"], "good study ambiance", False),
@@ -879,7 +883,7 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
-    config = Configurability(use_timer=False, show_reasoning=True, confirm_implicitly=True)
+    config = Configurability(use_timer=False, show_reasoning=False, confirm_implicitly=True)
     history = DialogHistory(restaurant_info, config)
     state = DialogState.Welcome(history)
     while state is not None:
