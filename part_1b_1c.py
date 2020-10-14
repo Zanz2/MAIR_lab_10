@@ -116,7 +116,7 @@ class Restaurant:
         self.sec_items = {  # These are the secondary preferences from the dataset, more will be inferred.
             "good food": InferredProperty("good food", data_row[7]),
             "good atmosphere": InferredProperty("good atmosphere", data_row[8]),
-            "big beverage selection": InferredProperty("big beverage selection", data_row[9]),
+            "large beverage selection": InferredProperty("large beverage selection", data_row[9]),
             "spaciousness": InferredProperty("spaciousness", data_row[10])}
         self.__apply_inferred_rules()
 
@@ -184,7 +184,7 @@ class KeywordMatch:
                 "good food": ["good food", "amazing food", "great food", "appetizing", "tempting", "flavorsome",
                               "tasteful", "yummy", "delicious", "tasty"],
                 "good atmosphere": ["good atmosphere", "environment"],
-                "big beverage selection": ["big beverage selection", "drink list"],
+                "large beverage selection": ["large beverage selection", "drink list"],
                 "spaciousness": ["spacious", "spaciousness", "roomy", "sizeable", "large space", "high-ceilinged"],
                 "busy atmosphere": ["busy", "busy", "hectic"],
                 "long waiting times": ["long time", "long waiting times", "for hours"],
@@ -843,7 +843,7 @@ class InferenceRule:
 # IMPLICATION RULES: Here all the rules for inference are defined.
 class Inference:
     rules = [
-        InferenceRule(["big beverage selection", "good atmosphere"], "long waiting times", True),
+        InferenceRule(["large beverage selection", "good atmosphere"], "long waiting times", True),
         InferenceRule(["good food", "good atmosphere"], "busy atmosphere", True),
         InferenceRule(["good food", "cheap prices"], "busy atmosphere", True),
         InferenceRule(["fast service", "cheap prices"], "short waiting times", True),
@@ -867,7 +867,7 @@ class Inference:
         InferenceRule(["long waiting times"], "short waiting times", False),
         InferenceRule(["short waiting times"], "long waiting times", False),
         InferenceRule(["child friendlyness"], "romantic atmosphere", False),
-        InferenceRule(["big beverage selection", "busy atmosphere"], "long waiting times", True),
+        InferenceRule(["large beverage selection", "busy atmosphere"], "long waiting times", True),
         InferenceRule(["good study ambiance"], "good meeting ambiance", True),
         InferenceRule(["good meeting ambiance"], "good study ambiance", False),
         InferenceRule(["fast service"], "long waiting times", False),
