@@ -333,7 +333,7 @@ class SystemUtterance:
             "pricerange": "Would you like something in the cheap, moderate, or expensive price range?",
             "food": "What kind of food would you like?",
             "secondaries": "Do you have any other wishes? Perhaps: 'good food'; 'good atmosphere'; 'large beverage "
-                           "selection'; 'spaciousness'; 'no busy atmosphere'; 'long waiting times'; \n'short waiting "
+                           "selection'; 'spaciousness'; 'no busy atmosphere'; \n'long waiting times'; 'short waiting "
                            "times'; 'child friendliness'; 'romantic atmosphere'; 'fast service'; 'outside seating'; "
                            "'good meeting ambiance'; 'good study ambiance'?"}}
 
@@ -354,6 +354,21 @@ class SystemUtterance:
         else:
             return ", ".join(subs[:-2] + [f"{subs[-2]} and {subs[-1]}"])
 
+    @classmethod
+    def header(cls):
+        return "\n\n\n                     ######################################### \n" \
+               "                     ##### RESTAURANT SUGGESTION CHATBOT ##### \n" \
+               "                     ######################################### \n\n\n"
+    
+    @classmethod
+    def confirm_implicitly(cls, history):
+        confirm = ""
+        if history.configurability.confirm_implicitly:
+            confirm = SystemUtterance.generate_combination(history.speech_acts[-1].parameters, "CONFIRMATION")
+            if confirm != "":
+                confirm = f"Ok, {confirm}. "
+        return confirm
+    
     @classmethod
     def ask_information(cls, category):
         return cls.TEMPLATES["QUESTION"][category]
@@ -550,11 +565,7 @@ class DialogState:
         
         def generate_sentence(self):
             # First implicitly confirm the given preferences (if any), then ask the chosen inquiry.
-            confirm = ""
-            if self.history.configurability.confirm_implicitly:
-                confirm = SystemUtterance.generate_combination(self.history.speech_acts[-1].parameters, "CONFIRMATION")
-                if confirm != "":
-                    confirm = f"Ok, {confirm}. "
+            confirm = SystemUtterance.confirm_implicitly(self.history)
             return f"{confirm}{SystemUtterance.ask_information(self.history.last_inquiry)}"
         
         def determine_next_state(self):
@@ -566,7 +577,8 @@ class DialogState:
             super().__init__("SYSTEM", "AskSecondaryPreference", history)
 
         def generate_sentence(self):
-            return f"{SystemUtterance.ask_information('secondaries')}"
+            confirm = SystemUtterance.confirm_implicitly(self.history)
+            return f"{confirm}{SystemUtterance.ask_information('secondaries')}"
 
         def determine_next_state(self):
             return DialogState.ExpressSecondaryPreference(self.history)
@@ -580,8 +592,10 @@ class DialogState:
             self.history.last_suggestion = options[-1]  # Choose restaurant with highest score_secondaries().
         
         def generate_sentence(self):
-            return SystemUtterance.suggest_restaurant(self.history.last_suggestion, self.history.secondary_preferences,
-                                                      self.history.configurability)
+            confirm = SystemUtterance.confirm_implicitly(self.history)
+            suggestion = SystemUtterance.suggest_restaurant(
+                self.history.last_suggestion, self.history.secondary_preferences, self.history.configurability)
+            return f"{confirm}{suggestion}"
 
         def determine_next_state(self):
             return DialogState.ConfirmNegateOrInquire(self.history)
@@ -658,6 +672,7 @@ class DialogState:
             super().__init__("USER", "ExpressSecondaryPreference", history)
 
         def process_user_act(self, speech_act):
+            self.history.speech_acts.append(speech_act)
             # This processes the utterance instead of the act (this is not according to the dialog_acts classifier).
             self.history.process_secondary_preferences(self.history.last_user_utterance)
 
@@ -796,10 +811,11 @@ class Transitioner:
 
 # CONFIGURABILITY: Here the configs are stored and related functionality is defined.
 class Configurability:
-    def __init__(self, use_timer=False, show_reasoning=True, confirm_implicitly=True):
+    def __init__(self, use_timer=False, show_reasoning=True, confirm_implicitly=True, echo_user_sentence=False):
         self.use_timer = use_timer
         self.show_reasoning = show_reasoning
         self.confirm_implicitly = confirm_implicitly
+        self.echo_user_sentence = echo_user_sentence
 
     # Time delay feature, adjusts its time based on the length of the sentence the user typed and how long the sentence is that 
     # will be generated to make it seem more like a response by a human
@@ -883,14 +899,16 @@ def main():
     data_elements = DataElements("dialog_acts.dat")
     restaurant_info = RestaurantInfo("restaurant_info_v2.csv")
     transitioner = Transitioner(data_elements, restaurant_info)
-    config = Configurability(use_timer=False, show_reasoning=False, confirm_implicitly=True)
+    config = Configurability(use_timer=False, show_reasoning=False, confirm_implicitly=True, echo_user_sentence=False)
     history = DialogHistory(restaurant_info, config)
+    print(SystemUtterance.header())
     state = DialogState.Welcome(history)
     while state is not None:
         utterance = None
         if state.state_type == "USER":
             utterance = SentenceCleanser.cleanse(input(""))
-            print(f"USER: {utterance}")
+            if config.echo_user_sentence:
+                print(f"USER: {utterance}")
         state, sentence = transitioner.transition(state, utterance)
         if sentence is not None:
             config.delay_response(history.last_user_utterance, sentence)
