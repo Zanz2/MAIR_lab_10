@@ -84,14 +84,15 @@ orange_patch = mpatches.Patch(color='orange', label='Group A, 1st task')
 purple_patch = mpatches.Patch(color='purple', label='Group B, 2nd task')
 blue_patch = mpatches.Patch(color='blue', label='Group A, 2nd task')
 red_patch = mpatches.Patch(color='red', label='Group B, 1.st task')
+null_patch = mpatches.Patch(color='black', label="")
 
 plt.legend(handles=[orange_patch,purple_patch,blue_patch,red_patch],loc=1)
 
-plt.bar(x_task_label,x_values,color=["orange","purple","blue","red"])
+plt.bar(x_task_label,x_values,color=["orange","purple","blue","red","black"])
 
 plt.tick_params(axis='x', which='major', labelsize=10, rotation="auto")
 plt.gcf().autofmt_xdate(rotation="vertical")
 #plt.ylabel(labels)
 plt.grid(axis='x', alpha=0.2)
-#plt.savefig("surveyplot.png")
+plt.savefig("surveyplot.png")
 plt.show()
