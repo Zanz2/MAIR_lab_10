@@ -27,7 +27,19 @@ class SurveyRun:
             else:
                 return 6 - self.__dict__[question]
         raise NotImplementedError
-    
+
+    def get_data_array(self):
+        return [
+            self.frequency,
+            self.complexity,
+            self.ease,
+            self.inconsistency,
+            self.learnability,
+            self.inconvenience,
+            self.confidence,
+            self.intuitiveness
+        ]
+
     def __str__(self):
         return "{" + ', '.join(f"\"{str(k)}\": {str(v)}" for k, v in self.__dict__.items()) + "}"
 
