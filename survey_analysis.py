@@ -47,5 +47,10 @@ class Survey:
         return f"{{\"filename\": \"{self.filename}\", \"entries\": [{', '.join(str(e) for e in self.entries)}]}}"
 
 
-x = Survey("participant_survey.csv")
-print(x)
+def main():
+    survey = Survey("participant_survey.csv")
+    print(survey)
+
+
+if __name__ == "__main__":
+    main()
