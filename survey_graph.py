@@ -73,10 +73,10 @@ for question_index in range(8):
 
 
     x_task_label.append("-{}-".format(question_index + 1))
-    x_task_label.append("Q{}A Task 1".format(question_index+1))
-    x_task_label.append("Q{}B Task 2".format(question_index+1))
-    x_task_label.append("Q{}A Task 2".format(question_index+1))
-    x_task_label.append("Q{}B Task 1".format(question_index+1))
+    x_task_label.append("Q{} A Task 1".format(question_index+1))
+    x_task_label.append("Q{} B Task 2".format(question_index+1))
+    x_task_label.append("Q{} A Task 2".format(question_index+1))
+    x_task_label.append("Q{} B Task 1".format(question_index+1))
     x_task_label.append("Q{} avg. satisfaction".format(question_index + 1))
 
 
@@ -100,7 +100,7 @@ plt.legend(handles=[orange_patch,purple_patch,blue_patch,red_patch,green_patch],
 
 plt.bar(x_task_label,x_values,color=["orange","purple","blue","red","green","black"])
 plt.ylim(0, 5)
-plt.tick_params(axis='x', which='major', labelsize=10, rotation="auto")
+plt.tick_params(axis='x', which='major', labelsize=8, rotation="auto")
 plt.figtext(0.3, 0.90, "Average question score per group", wrap=True, horizontalalignment='center', fontsize=10)
 plt.gcf().autofmt_xdate(rotation="vertical")
 #plt.ylabel(labels)
