@@ -64,22 +64,33 @@ for question_index in range(8):
     result_array[question_index].append(graph_dictionary["b"]["second"][question_index])
     result_array[question_index].append(graph_dictionary["a"]["second"][question_index])
     result_array[question_index].append(graph_dictionary["b"]["first"][question_index])
-    sum = graph_dictionary["a"]["first"][question_index] + graph_dictionary["b"]["second"][question_index] + graph_dictionary["a"]["second"][question_index] + graph_dictionary["b"]["first"][question_index]
-    avg_sum = sum / 4
-    if question_index % 2 != 0:  # every other question is negated
-        avg_sum = abs(avg_sum - 5)
-    result_array[question_index].append(avg_sum)
     result_array[question_index].append(0)
 
 
-    x_task_label.append("-{}-".format(question_index + 1))
     x_task_label.append("Q{} A Task 1".format(question_index+1))
     x_task_label.append("Q{} B Task 2".format(question_index+1))
     x_task_label.append("Q{} A Task 2".format(question_index+1))
     x_task_label.append("Q{} B Task 1".format(question_index+1))
-    x_task_label.append("Q{} avg. satisfaction".format(question_index + 1))
+    x_task_label.append("-{}-".format(question_index + 1))
 
+sums = [0,0,0,0]
+for question_index in range(8):
+    sums[0] += graph_dictionary["a"]["first"][question_index]
+    sums[1] += graph_dictionary["b"]["second"][question_index]
+    sums[2] += graph_dictionary["a"]["second"][question_index]
+    sums[3] += graph_dictionary["b"]["first"][question_index]
 
+new_max = len(result_array)
+result_array[new_max] = []
+result_array[new_max].append(sums[0]/(new_max-1))
+result_array[new_max].append(sums[1]/(new_max-1))
+result_array[new_max].append(sums[2]/(new_max-1))
+result_array[new_max].append(sums[3]/(new_max-1))
+
+x_task_label.append("Group A Task 1 combined average")
+x_task_label.append("Group B Task 2 combined average")
+x_task_label.append("Group A Task 2 combined average")
+x_task_label.append("Group B Task 1 combined average")
 #print(result_array)
 #x_question_label = ["question {}".format(number + 1) for number in result_array]
 
@@ -93,12 +104,12 @@ orange_patch = mpatches.Patch(color='orange', label='Group A, 1st task')
 purple_patch = mpatches.Patch(color='purple', label='Group B, 2nd task')
 blue_patch = mpatches.Patch(color='blue', label='Group A, 2nd task')
 red_patch = mpatches.Patch(color='red', label='Group B, 1.st task')
-green_patch = mpatches.Patch(color='green', label='Overall average user satisfaction')
+#green_patch = mpatches.Patch(color='green', label='Overall average user satisfaction')
 null_patch = mpatches.Patch(color='black', label="")
 
-plt.legend(handles=[orange_patch,purple_patch,blue_patch,red_patch,green_patch],loc=1,fontsize=8)
+plt.legend(handles=[orange_patch,purple_patch,blue_patch,red_patch],loc=1,fontsize=8)
 
-plt.bar(x_task_label,x_values,color=["orange","purple","blue","red","green","black"])
+plt.bar(x_task_label,x_values,color=["orange","purple","blue","red","black"])
 plt.ylim(0, 5)
 plt.tick_params(axis='x', which='major', labelsize=8, rotation="auto")
 plt.figtext(0.3, 0.90, "Average question score per group", wrap=True, horizontalalignment='center', fontsize=10)
