@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import numpy as np
 
 from survey_analysis import *
 
@@ -82,10 +83,10 @@ for question_index in range(8):
 
 new_max = len(result_array)
 result_array[new_max] = []
-result_array[new_max].append(sums[0]/(new_max-1))
-result_array[new_max].append(sums[1]/(new_max-1))
-result_array[new_max].append(sums[2]/(new_max-1))
-result_array[new_max].append(sums[3]/(new_max-1))
+result_array[new_max].append(sums[0]/(new_max))
+result_array[new_max].append(sums[1]/(new_max))
+result_array[new_max].append(sums[2]/(new_max))
+result_array[new_max].append(sums[3]/(new_max))
 
 x_task_label.append("Group A Task 1 combined average")
 x_task_label.append("Group B Task 2 combined average")
@@ -108,9 +109,28 @@ red_patch = mpatches.Patch(color='red', label='Group B, 1.st task')
 null_patch = mpatches.Patch(color='black', label="")
 
 plt.legend(handles=[orange_patch,purple_patch,blue_patch,red_patch],loc=1,fontsize=8)
+x_task_label_minified = [
+    "Question 1",
+    "Question 2",
+    "Question 3",
+    "Question 4",
+    "Question 5",
+    "Question 6",
+    "Question 7",
+    "Question 8",
+    "Combined \naverages\n over groups\nand tasks",
+]
+x_task_label_numbers = np.arange(0,44,1)
+print(len(x_task_label_minified))
+print(len(x_task_label))
 
-plt.bar(x_task_label,x_values,color=["orange","purple","blue","red","black"])
+#plt.locator_params(axis = 'x', nbins = 9)
+plt.bar(x_task_label_numbers,x_values,color=["orange","purple","blue","red","black"])
 plt.ylim(0, 5)
+x_tick_list = list(np.arange(2,41,5))
+x_tick_list.append(43)
+plt.xticks(x_tick_list,x_task_label_minified)
+#plt.xticks(np.arange(1, len(x_values), 1))
 plt.tick_params(axis='x', which='major', labelsize=8, rotation="auto")
 plt.figtext(0.3, 0.90, "Average question score per group", wrap=True, horizontalalignment='center', fontsize=10)
 plt.gcf().autofmt_xdate(rotation="vertical")
