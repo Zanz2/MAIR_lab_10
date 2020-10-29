@@ -170,15 +170,20 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
                 main_index = 1
 
             ax[main_index][i % 8].set_xticks(np.arange(1,6))
-            ax[main_index][i % 8].set_xticklabels(np.arange(1,6))
+            ax[main_index][i % 8].set_xticklabels(np.arange(1,6),fontsize=18)
             ax[main_index][i%8].set_xlim(1,5)
+            #ax[main_index][i % 8].set_yticklabels(np.arange(0, 15), fontsize=18)
+            ax[main_index][i % 8].tick_params(axis='y', labelsize=18)
             ax[main_index][i % 8].set_ylim(0, 15)
-            ax[main_index][i % 8].set_title('Question {}'.format(i%8+1),{"fontsize":11})
-            ax[main_index][i % 8].set_ylabel("# of responses",fontsize=11)
-            ax[main_index][i % 8].set_xlabel("Likert score",fontsize=11)
+            if i < 8:
+                ax[main_index][i % 8].set_title('Question {}'.format(i%8+1),{"fontsize":21})
+            else:
+                ax[main_index][i % 8].set_xlabel("Likert score",fontsize=21)
             ax[main_index][i%8].hist(data,bins=5,edgecolor="black")
 
-        fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ",fontsize=11)
+        ax[0][0].set_ylabel("# of responses", fontsize=21)
+        ax[1][0].set_ylabel("# of responses", fontsize=21)
+        fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ",fontsize=21)
         plt.tight_layout()
         if save_file: plt.savefig('images/hist_question_score_responses.png', dpi=100)
 
