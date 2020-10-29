@@ -20,8 +20,8 @@ def get_graph_dictionary(survey_results_file):
             "first": [0.,0.,0.,0.,0.,0.,0.,0.],
             "second": [0.,0.,0.,0.,0.,0.,0.,0.]
         },
-        "first_task_responses": [[], [], [], [], [], [], [], []],
-        "second_task_responses": [[], [], [], [], [], [], [], []]
+        "non_implicit_responses": [[], [], [], [], [], [], [], []],
+        "implicit_responses": [[], [], [], [], [], [], [], []]
     }
     group_count = {
         "a": 0,
@@ -36,8 +36,12 @@ def get_graph_dictionary(survey_results_file):
             group = survey_output.entries[participant_index].group
             output_dictionary[group]["first"][question_index] += first_task_question_response
             output_dictionary[group]["second"][question_index] += second_task_question_response
-            output_dictionary["first_task_responses"][question_index].append(first_task_question_response)
-            output_dictionary["second_task_responses"][question_index].append(second_task_question_response)
+            if group == "a":
+                output_dictionary["non_implicit_responses"][question_index].append(first_task_question_response)
+                output_dictionary["implicit_responses"][question_index].append(second_task_question_response)
+            else:
+                output_dictionary["non_implicit_responses"][question_index].append(second_task_question_response)
+                output_dictionary["implicit_responses"][question_index].append(first_task_question_response)
 
     for entry in survey_output.entries:
         group_count[entry.group] += 1
@@ -51,10 +55,10 @@ def get_graph_dictionary(survey_results_file):
 
 
 def plot_bar_averages(graph_dictionary, save_file = False):
-    #A first task
-    #B second task
-    #A second task
-    #B first task
+    #A first task w/o
+    #B second task w/o
+    #A second task w
+    #B first task w
     result_array = {}
     for question_index in range(8): # for visualizing the means over groups
         result_array[question_index] = []
@@ -160,31 +164,31 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
         for i in range(16):
             main_index = 0
             if i<8:
-                data = graph_dictionary["first_task_responses"][i]
+                data = graph_dictionary["non_implicit_responses"][i]
             else:
-                data = graph_dictionary["second_task_responses"][i % 8]
+                data = graph_dictionary["implicit_responses"][i % 8]
                 main_index = 1
 
             ax[main_index][i % 8].set_xticks(np.arange(1,6))
             ax[main_index][i % 8].set_xticklabels(np.arange(1,6))
             ax[main_index][i%8].set_xlim(1,5)
             ax[main_index][i % 8].set_ylim(0, 15)
-            ax[main_index][i % 8].set_title('Question {}'.format(i%8+1))
-            ax[main_index][i % 8].set_ylabel("# of responses")
-            ax[main_index][i % 8].set_xlabel("Likert score")
+            ax[main_index][i % 8].set_title('Question {}'.format(i%8+1),{"fontsize":11})
+            ax[main_index][i % 8].set_ylabel("# of responses",fontsize=11)
+            ax[main_index][i % 8].set_xlabel("Likert score",fontsize=11)
             ax[main_index][i%8].hist(data,bins=5,edgecolor="black")
 
-        fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ")
+        fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ",fontsize=11)
         plt.tight_layout()
-        if save_file: plt.savefig('images/hist_question_score_responses.png', dpi=300)
+        if save_file: plt.savefig('images/hist_question_score_responses.png', dpi=100)
 
     else:
         fig, ax = plt.subplots(2)
         without_implicit = ""
         with_implicit = ""
 
-        data1_nonflat = graph_dictionary["first_task_responses"]
-        data2_nonflat = graph_dictionary["second_task_responses"]
+        data1_nonflat = graph_dictionary["non_implicit_responses"]
+        data2_nonflat = graph_dictionary["implicit_responses"]
         data1 = [item for sublist in data1_nonflat for item in sublist]
         data2 = [item for sublist in data2_nonflat for item in sublist]
 
@@ -229,7 +233,7 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
     plt.show()
 
 
-save_stuff = False
+save_stuff = True
 graph_dictionary = get_graph_dictionary("participant_survey.csv")
 plot_bar_averages(graph_dictionary, save_file=save_stuff)
 plot_error_bars(graph_dictionary, save_file=save_stuff)
