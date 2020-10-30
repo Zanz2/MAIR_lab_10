@@ -37,9 +37,15 @@ def get_graph_dictionary(survey_results_file):
             output_dictionary[group]["first"][question_index] += first_task_question_response
             output_dictionary[group]["second"][question_index] += second_task_question_response
             if group == "a":
+                if question_index % 2 != 0:
+                    first_task_question_response = abs(first_task_question_response - 6)
+                    second_task_question_response = abs(second_task_question_response - 6)
                 output_dictionary["non_implicit_responses"][question_index].append(first_task_question_response)
                 output_dictionary["implicit_responses"][question_index].append(second_task_question_response)
             else:
+                if question_index % 2 != 0:
+                    first_task_question_response = abs(first_task_question_response - 6)
+                    second_task_question_response = abs(second_task_question_response - 6)
                 output_dictionary["non_implicit_responses"][question_index].append(second_task_question_response)
                 output_dictionary["implicit_responses"][question_index].append(first_task_question_response)
 
@@ -186,7 +192,6 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
                 data = graph_dictionary["implicit_responses"][i % 8]
                 main_index = 1
 
-            data = adj_negated(data)
             ax[main_index][i % 8].set_xticks(np.arange(1, 6))
             ax[main_index][i % 8].set_xticklabels(np.arange(1, 6), fontsize=18)
             ax[main_index][i % 8].set_xlim(0, 6)
@@ -223,8 +228,7 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
         data2_nonflat = graph_dictionary["implicit_responses"]
         data1 = [item for sublist in data1_nonflat for item in sublist]
         data2 = [item for sublist in data2_nonflat for item in sublist]
-        data1 = adj_negated(data1)
-        data2 = adj_negated(data2)
+
 
         ax[0].set_xticks(np.arange(1,6))
         ax[0].set_xticklabels(np.arange(1, 6), fontsize=12)
