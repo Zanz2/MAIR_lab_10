@@ -135,13 +135,13 @@ def plot_error_bars(graph_dictionary, save_file=False):
     without_impl_mean = np.mean(without_impl)
     with_impl_mean = np.mean(with_impl)
 
-
-    a_1_std = np.std(a_1)
-    b_2_std = np.std(b_2)
-    a_2_std = np.std(a_2)
-    b_1_std = np.std(b_1)
-    without_impl_std = np.std(without_impl)
-    with_impl_std = np.std(with_impl)
+    # standard error of the mean
+    a_1_std = np.std(a_1, ddof=1) / np.sqrt(np.size(a_1))
+    b_2_std = np.std(b_2, ddof=1) / np.sqrt(np.size(b_2))
+    a_2_std = np.std(a_2, ddof=1) / np.sqrt(np.size(a_2))
+    b_1_std = np.std(b_1, ddof=1) / np.sqrt(np.size(b_1))
+    without_impl_std = np.std(without_impl, ddof=1) / np.sqrt(np.size(without_impl))
+    with_impl_std = np.std(with_impl, ddof=1) / np.sqrt(np.size(with_impl))
 
     labels = [
         "Group A\n(implicit conf. off)\n",
