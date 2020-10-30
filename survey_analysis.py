@@ -1,5 +1,5 @@
 import pandas as pd
-from scipy import stats
+from scipy import stats, median
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -101,8 +101,8 @@ class Survey:
         runs = [e.get_group(implicit_confirmation) for e in self.entries]
         return [r.get_adjusted_data()[question_index] for r in runs]
 
-    def get_total_scores(self, implicit_confirmation):
-        runs = [e.get_group(implicit_confirmation) for e in self.entries]
+    def get_total_scores(self, implicit_confirmation, from_group=""):
+        runs = [e.get_group(implicit_confirmation) for e in self.entries if from_group in (e.group, "")]
         return [sum(r.get_adjusted_data()) / len(r.get_adjusted_data()) for r in runs]
 
 
@@ -141,67 +141,96 @@ def paired_sample_ttest(save=False):
     print(data)
 
 
-def __plot_distribution(ax, show_yticks, title, data, color=False, density=False):
+def __plot_distribution(ax, show_yticks, show_ylabel, title, data, color=False, density=False):
+    fontsize = 20
     ax.set_xticks(np.arange(1, 6))
-    ax.set_xticklabels(np.arange(1, 6), fontsize=12)
-    ax.tick_params(axis='y', labelsize=12)
-    if show_yticks:
+    ax.set_xticklabels(np.arange(1, 6), fontsize=fontsize)
+    ax.tick_params(axis="y", labelsize=fontsize)
+    if show_ylabel:
         if density:
-            ax.set_ylabel("distribution of responses", fontsize=12)
+            ax.set_ylabel("distribution of responses", fontsize=fontsize)
+            ax.set_xlabel("satisfaction score", fontsize=fontsize)
         else:
-            ax.set_ylabel("# responses", fontsize=12)
-        ax.set_xlabel("Likert score", fontsize=12)
-    else:
-        ax.tick_params(axis='y', which='both', length=0, labelsize=0)
+            ax.set_ylabel("# responses", fontsize=fontsize)
+            ax.set_xlabel("Likert score", fontsize=fontsize)
+    if not show_yticks:
+        ax.tick_params(axis="y", which="both", length=0, labelsize=0)
     if title is not None:
-        ax.set_title(title, {"fontsize": 12})
+        ax.set_title(title, {"fontsize": fontsize})
     if color:
-        ax.hist(data, np.arange(1, 7) - .5, color="orange", edgecolor="black")
+        ax.hist(data, np.arange(1, 7) - .5, color="orange", alpha=0.5, edgecolor="black")
     elif density:
-        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black", density=1)
+        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black", alpha=0.5, density=1)
     else:
-        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black")
+        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black", alpha=0.5)
 
 
 def plot_distributions(survey, save_file):
     fig, ax = plt.subplots(2, 9, figsize=(22, 6), sharey="all", sharex="all")
     for i in range(8):
-        __plot_distribution(ax[0][i], i == 0, f"Question {i + 1}", survey.get_question_scores(i, False))
-        __plot_distribution(ax[1][i], i == 0, None, survey.get_question_scores(i, True))
-    __plot_distribution(ax[0][8], False, "Satisfaction", survey.get_total_scores(False), color=True)
-    __plot_distribution(ax[1][8], False, None, survey.get_total_scores(True), color=True)
+        __plot_distribution(ax[0][i], i == 0, False, f"Question {i + 1}", survey.get_question_scores(i, False))
+        __plot_distribution(ax[1][i], i == 0, i == 0, None, survey.get_question_scores(i, True))
+    __plot_distribution(ax[0][8], False, False, "Satisfaction", survey.get_total_scores(False), color=True)
+    __plot_distribution(ax[1][8], False, False, None, survey.get_total_scores(True), color=True)
     plt.tight_layout()
     if save_file:
-        plt.savefig('images/hist_question_score_responses.png', dpi=300)
+        plt.savefig("images/hist_question_score_responses.png", dpi=300)
 
 
 def plot_condensed_distribution(survey, save_file):
     fig, ax = plt.subplots(1, 2, figsize=(18, 6), sharey="all", sharex="all")
     data_without = [x for i in range(8) for x in survey.get_question_scores(i, False)]
     data_with = [x for i in range(8) for x in survey.get_question_scores(i, True)]
-    __plot_distribution(ax[0], True, "Without implicit confirmation", data_without, density=True)
-    __plot_distribution(ax[1], False, "With implicit confirmation", data_with, density=True)
+    __plot_distribution(ax[0], True, True, "Without implicit confirmation", data_without, density=True)
+    __plot_distribution(ax[1], False, False, "With implicit confirmation", data_with, density=True)
     plt.tight_layout()
     if save_file:
-        plt.savefig('images/hist_question_score_responses_condensed.png', dpi=300)
+        plt.savefig("images/hist_question_score_responses_condensed.png", dpi=300)
+
+
+def plot_error_bars(survey, save_file):
+    fontsize = 20
+    params = [
+        ("a", False, "A\nwithout"),
+        ("a", True, "A\nwith"),
+        ("b", False, "B\nwithout"),
+        ("b", True, "B\nwith"),
+        ("", False, "Total\nwithout"),
+        ("", True, "Total\nwith")
+    ]
+    means, sterrs, labels, xticks = [], [], [], []
+    for i, param in enumerate(params):
+        group, implicit, label = param
+        scores = np.array(survey.get_total_scores(implicit, group))
+        mean = np.mean(scores)
+        stdev = np.std(scores, ddof=1)
+        sterr = stdev / np.sqrt(np.size(scores))
+        means.append(mean)
+        sterrs.append(sterr)
+        labels.append(label)
+        xticks.append(i)
+        print(label.replace("\n", " ") + f" {median(scores)} {mean} {stdev} {sterr}")
+    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+    ax.bar(xticks[:4], means[:4], yerr=sterrs[:4], align="center", alpha=0.5, ecolor="black", capsize=10)
+    ax.bar(xticks[4:], means[4:], yerr=sterrs[4:], align="center", alpha=0.5, ecolor="black", capsize=10)
+    ax.set_ylabel("satisfaction score", fontsize=fontsize)
+    ax.set_xticks(xticks)
+    ax.set_xticklabels([p[2] for p in params], fontsize=fontsize)
+    ax.yaxis.grid(True)
+    ax.set_ylim(0, 5)
+    plt.tight_layout()
+    if save_file:
+        plt.savefig('images/bar_plot_with_error_bars.png', dpi=300)
+    plt.show()
 
 
 def main():
-    paired_sample_ttest(True)
+    # paired_sample_ttest(True)
+    survey = Survey("participant_survey.csv")
+    plot_distributions(survey, True)
+    plot_condensed_distribution(survey, True)
+    plot_error_bars(survey, True)
 
 
 if __name__ == "__main__":
-    # main()
-    pass
-
-
-survey_ = Survey("participant_survey.csv")
-for ii in range(8):
-    print("")
-    print(survey_.get_question_scores(ii, True))
-    print(survey_.get_question_scores(ii, False))
-print(survey_.get_total_scores(True))
-print(survey_.get_total_scores(False))
-plot_distributions(survey_, False)
-plot_condensed_distribution(survey_, False)
-print([x for x in survey_.get_total_scores(False) if x > 4.5])
+    main()
