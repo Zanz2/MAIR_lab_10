@@ -112,26 +112,34 @@ def plot_bar_averages(graph_dictionary, save_file = False):
     x_tick_list.append(43)
     plt.xticks(x_tick_list, x_task_label_minified)
     plt.tick_params(axis='x', which='major', labelsize=8, rotation="auto")
-    plt.figtext(0.3, 0.90, "Average question score per group", wrap=True, horizontalalignment='center', fontsize=10)
+    #plt.figtext(0.3, 0.90, "Average question score per group", wrap=True, horizontalalignment='center', fontsize=10)
     plt.gcf().autofmt_xdate(rotation="vertical")
     plt.grid(axis='x', alpha=0.2)
     if save_file: plt.savefig("images/survey_group_averages.png", dpi=300)
     plt.show()
 
 def plot_error_bars(graph_dictionary, save_file=False):
-    a_1_mean = np.mean(graph_dictionary["a"]["first"])
-    b_2_mean = np.mean(graph_dictionary["b"]["second"])
-    a_2_mean = np.mean(graph_dictionary["a"]["second"])
-    b_1_mean = np.mean(graph_dictionary["b"]["first"])
-    without_impl = graph_dictionary["a"]["first"] + graph_dictionary["b"]["second"]
-    with_impl = graph_dictionary["a"]["second"] + graph_dictionary["b"]["first"]
+    a_1 = adj_negated(graph_dictionary["a"]["first"])
+    b_2 = adj_negated(graph_dictionary["b"]["second"])
+    a_2 = adj_negated(graph_dictionary["a"]["second"])
+    b_1 = adj_negated(graph_dictionary["b"]["first"])
+
+    a_1_mean = np.mean(a_1)
+    b_2_mean = np.mean(b_2)
+    a_2_mean = np.mean(a_2)
+    b_1_mean = np.mean(b_1)
+
+
+    without_impl = a_1 + b_2
+    with_impl = a_2 + b_1
     without_impl_mean = np.mean(without_impl)
     with_impl_mean = np.mean(with_impl)
 
-    a_1_std = np.std(graph_dictionary["a"]["first"])
-    b_2_std = np.std(graph_dictionary["b"]["second"])
-    a_2_std = np.std(graph_dictionary["a"]["second"])
-    b_1_std = np.std(graph_dictionary["b"]["first"])
+
+    a_1_std = np.std(a_1)
+    b_2_std = np.std(b_2)
+    a_2_std = np.std(a_2)
+    b_1_std = np.std(b_1)
     without_impl_std = np.std(without_impl)
     with_impl_std = np.std(with_impl)
 
@@ -158,7 +166,7 @@ def plot_error_bars(graph_dictionary, save_file=False):
     ax.set_ylabel('')
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels,rotation="30")
-    ax.set_title('Average response scores on all questions')
+    #ax.set_title('Average response scores on all questions')
     ax.yaxis.grid(True)
     ax.set_ylim(0, 5)
 
@@ -178,6 +186,7 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
                 data = graph_dictionary["implicit_responses"][i % 8]
                 main_index = 1
 
+            data = adj_negated(data)
             ax[main_index][i % 8].set_xticks(np.arange(1, 6))
             ax[main_index][i % 8].set_xticklabels(np.arange(1, 6), fontsize=18)
             ax[main_index][i % 8].set_xlim(0, 6)
@@ -201,7 +210,7 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
 
         ax[0][0].set_ylabel("# of responses", fontsize=21)
         ax[1][0].set_ylabel("# of responses", fontsize=21)
-        fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ",fontsize=21)
+        #fig.suptitle("Number of scores (1-5) per question. No implicit confirmation above,\n with implicit confirmation below ",fontsize=21)
         plt.tight_layout()
         if save_file: plt.savefig('images/hist_question_score_responses.png', dpi=100)
 
@@ -212,8 +221,10 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
 
         data1_nonflat = graph_dictionary["non_implicit_responses"]
         data2_nonflat = graph_dictionary["implicit_responses"]
-        data1 = [abs(item-6) if index % 2 != 0 else item for sublist in data1_nonflat for index, item in enumerate(sublist)]
-        data2 = [abs(item-6) if index % 2 != 0 else item for sublist in data2_nonflat for index, item in enumerate(sublist)]
+        data1 = [item for sublist in data1_nonflat for item in sublist]
+        data2 = [item for sublist in data2_nonflat for item in sublist]
+        data1 = adj_negated(data1)
+        data2 = adj_negated(data2)
 
         ax[0].set_xticks(np.arange(1,6))
         ax[0].set_xticklabels(np.arange(1, 6), fontsize=12)
@@ -249,12 +260,14 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
         ax[1].set_ylabel("Distribution of responses")
         ax[1].set_xlabel("Likert score\n"+with_implicit)
 
-        fig.suptitle("Number of scores (1-5) across all questions. No implicit confirmation above,\n with implicit confirmation below ")
+        #fig.suptitle("Number of scores (1-5) across all questions. No implicit confirmation above,\n with implicit confirmation below ")
         fig.tight_layout()
         if save_file: plt.savefig('images/hist_question_score_responses_condensed.png', dpi=300)
 
     plt.show()
 
+def adj_negated(questions_list):
+    return [abs(item-6) if index % 2 != 0 else item for index, item in enumerate(questions_list)]
 
 save_stuff = True
 graph_dictionary = get_graph_dictionary("participant_survey.csv")
