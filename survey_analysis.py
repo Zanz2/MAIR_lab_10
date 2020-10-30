@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy import stats
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class SurveyRun:
@@ -38,6 +39,18 @@ class SurveyRun:
             self.inconvenience,
             self.confidence,
             self.intuitiveness
+        ]
+
+    def get_adjusted_data(self):
+        return [
+            self.frequency,
+            6 - self.complexity,
+            self.ease,
+            6 - self.inconsistency,
+            self.learnability,
+            6 - self.inconvenience,
+            self.confidence,
+            6 - self.intuitiveness
         ]
 
     def __str__(self):
@@ -84,6 +97,14 @@ class Survey:
     def __str__(self):
         return f"{{\"filename\": \"{self.filename}\", \"entries\": [{', '.join(str(e) for e in self.entries)}]}}"
 
+    def get_question_scores(self, question_index, implicit_confirmation):
+        runs = [e.get_group(implicit_confirmation) for e in self.entries]
+        return [r.get_adjusted_data()[question_index] for r in runs]
+
+    def get_total_scores(self, implicit_confirmation):
+        runs = [e.get_group(implicit_confirmation) for e in self.entries]
+        return [sum(r.get_adjusted_data()) / len(r.get_adjusted_data()) for r in runs]
+
 
 def paired_sample_ttest(save=False):
     survey = Survey("participant_survey.csv")
@@ -120,9 +141,67 @@ def paired_sample_ttest(save=False):
     print(data)
 
 
+def __plot_distribution(ax, show_yticks, title, data, color=False, density=False):
+    ax.set_xticks(np.arange(1, 6))
+    ax.set_xticklabels(np.arange(1, 6), fontsize=12)
+    ax.tick_params(axis='y', labelsize=12)
+    if show_yticks:
+        if density:
+            ax.set_ylabel("distribution of responses", fontsize=12)
+        else:
+            ax.set_ylabel("# responses", fontsize=12)
+        ax.set_xlabel("Likert score", fontsize=12)
+    else:
+        ax.tick_params(axis='y', which='both', length=0, labelsize=0)
+    if title is not None:
+        ax.set_title(title, {"fontsize": 12})
+    if color:
+        ax.hist(data, np.arange(1, 7) - .5, color="orange", edgecolor="black")
+    elif density:
+        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black", density=1)
+    else:
+        ax.hist(data, np.arange(1, 7) - .5, edgecolor="black")
+
+
+def plot_distributions(survey, save_file):
+    fig, ax = plt.subplots(2, 9, figsize=(22, 6), sharey="all", sharex="all")
+    for i in range(8):
+        __plot_distribution(ax[0][i], i == 0, f"Question {i + 1}", survey.get_question_scores(i, False))
+        __plot_distribution(ax[1][i], i == 0, None, survey.get_question_scores(i, True))
+    __plot_distribution(ax[0][8], False, "Satisfaction", survey.get_total_scores(False), color=True)
+    __plot_distribution(ax[1][8], False, None, survey.get_total_scores(True), color=True)
+    plt.tight_layout()
+    if save_file:
+        plt.savefig('images/hist_question_score_responses.png', dpi=300)
+
+
+def plot_condensed_distribution(survey, save_file):
+    fig, ax = plt.subplots(1, 2, figsize=(18, 6), sharey="all", sharex="all")
+    data_without = [x for i in range(8) for x in survey.get_question_scores(i, False)]
+    data_with = [x for i in range(8) for x in survey.get_question_scores(i, True)]
+    __plot_distribution(ax[0], True, "Without implicit confirmation", data_without, density=True)
+    __plot_distribution(ax[1], False, "With implicit confirmation", data_with, density=True)
+    plt.tight_layout()
+    if save_file:
+        plt.savefig('images/hist_question_score_responses_condensed.png', dpi=300)
+
+
 def main():
     paired_sample_ttest(True)
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    pass
+
+
+survey_ = Survey("participant_survey.csv")
+for ii in range(8):
+    print("")
+    print(survey_.get_question_scores(ii, True))
+    print(survey_.get_question_scores(ii, False))
+print(survey_.get_total_scores(True))
+print(survey_.get_total_scores(False))
+plot_distributions(survey_, False)
+plot_condensed_distribution(survey_, False)
+print([x for x in survey_.get_total_scores(False) if x > 4.5])
