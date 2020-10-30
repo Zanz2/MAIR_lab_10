@@ -33,7 +33,7 @@ def get_graph_dictionary(survey_results_file):
         for participant_index in range(number_of_participants):
             first_task_question_response = survey_output.entries[participant_index].first.get_data_array()[question_index]
             second_task_question_response = survey_output.entries[participant_index].second.get_data_array()[question_index]
-            group = survey_output.entries[participant_index].group
+            group = survey_output.entries[participant_index].group.lower()
             output_dictionary[group]["first"][question_index] += first_task_question_response
             output_dictionary[group]["second"][question_index] += second_task_question_response
             if group == "a":
@@ -123,20 +123,29 @@ def plot_error_bars(graph_dictionary, save_file=False):
     b_2_mean = np.mean(graph_dictionary["b"]["second"])
     a_2_mean = np.mean(graph_dictionary["a"]["second"])
     b_1_mean = np.mean(graph_dictionary["b"]["first"])
+    without_impl = graph_dictionary["a"]["first"] + graph_dictionary["b"]["second"]
+    with_impl = graph_dictionary["a"]["second"] + graph_dictionary["b"]["first"]
+    without_impl_mean = np.mean(without_impl)
+    with_impl_mean = np.mean(with_impl)
 
     a_1_std = np.std(graph_dictionary["a"]["first"])
     b_2_std = np.std(graph_dictionary["b"]["second"])
     a_2_std = np.std(graph_dictionary["a"]["second"])
     b_1_std = np.std(graph_dictionary["b"]["first"])
+    without_impl_std = np.std(without_impl)
+    with_impl_std = np.std(with_impl)
 
-    labels = ["Group A\n(w/o implicit conf.)\nMean: {}\nSigma: {}".format(rnd(a_1_mean),rnd(a_1_std)),
-              "Group B\n(w/o implicit conf.)\nMean: {}\nSigma: {}".format(rnd(b_2_mean),rnd(b_2_std)),
-              "Group A\n(with implicit conf.)\nMean: {}\nSigma: {}".format(rnd(a_2_mean),rnd(a_2_std)),
-              "Group B\n(with implicit conf.)\nMean: {}\nSigma: {}".format(rnd(b_1_mean),rnd(b_1_std))
-              ]
+    labels = [
+        "Group A\n(implicit conf. off)\n",
+              "Group B\n(implicit conf. off)\n",
+              "Group A\n(implicit conf. on)\n",
+              "Group B\n(implicit conf. on)\n",
+              "Implicit conf. off \ncumulative",
+              "Implicit conf. on \ncumulative"
+        ]
     x_pos = np.arange(len(labels))
-    CTEs = [a_1_mean,b_2_mean,a_2_mean,b_1_mean]
-    error = [a_1_std,b_2_std,a_2_std,b_1_std]
+    CTEs = [a_1_mean,b_2_mean,a_2_mean,b_1_mean,without_impl_mean,with_impl_mean]
+    error = [a_1_std,b_2_std,a_2_std,b_1_std,without_impl_std,with_impl_std]
 
     # Build the plot
     fig, ax = plt.subplots()
@@ -148,7 +157,7 @@ def plot_error_bars(graph_dictionary, save_file=False):
            capsize=10)
     ax.set_ylabel('')
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(labels,rotation="0")
+    ax.set_xticklabels(labels,rotation="30")
     ax.set_title('Average response scores on all questions')
     ax.yaxis.grid(True)
     ax.set_ylim(0, 5)
@@ -163,23 +172,32 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
         fig, ax = plt.subplots(2,8,figsize=(18,8))
         for i in range(16):
             main_index = 0
-            if i<8:
+            if i < 8:
                 data = graph_dictionary["non_implicit_responses"][i]
             else:
                 data = graph_dictionary["implicit_responses"][i % 8]
                 main_index = 1
 
-            ax[main_index][i % 8].set_xticks(np.arange(1,6))
-            ax[main_index][i % 8].set_xticklabels(np.arange(1,6),fontsize=18)
-            ax[main_index][i%8].set_xlim(1,5)
-            #ax[main_index][i % 8].set_yticklabels(np.arange(0, 15), fontsize=18)
-            ax[main_index][i % 8].tick_params(axis='y', labelsize=18)
+            ax[main_index][i % 8].set_xticks(np.arange(1, 6))
+            ax[main_index][i % 8].set_xticklabels(np.arange(1, 6), fontsize=18)
+            ax[main_index][i % 8].set_xlim(0, 6)
             ax[main_index][i % 8].set_ylim(0, 15)
-            if i < 8:
-                ax[main_index][i % 8].set_title('Question {}'.format(i%8+1),{"fontsize":21})
+            ax[main_index][i % 8].tick_params(axis='y', labelsize=18)
+
+            if i % 8 != 0:
+                ax[main_index][i % 8].tick_params(
+                    axis='y',
+                    which='both',
+                    length=0,
+                    labelsize=0
+                )
             else:
-                ax[main_index][i % 8].set_xlabel("Likert score",fontsize=21)
-            ax[main_index][i%8].hist(data,bins=5,edgecolor="black")
+                ax[main_index][i % 8].set_xlabel("Likert score", fontsize=21)
+
+            if i < 8:
+                ax[main_index][i % 8].set_title('Question {}'.format(i % 8+1), {"fontsize": 21})
+
+            ax[main_index][i%8].hist(data,np.arange(1,7)-.5,edgecolor="black")
 
         ax[0][0].set_ylabel("# of responses", fontsize=21)
         ax[1][0].set_ylabel("# of responses", fontsize=21)
@@ -194,41 +212,41 @@ def plot_question_score_responses(grap_dictionary, save_file = False, condensed 
 
         data1_nonflat = graph_dictionary["non_implicit_responses"]
         data2_nonflat = graph_dictionary["implicit_responses"]
-        data1 = [item for sublist in data1_nonflat for item in sublist]
-        data2 = [item for sublist in data2_nonflat for item in sublist]
+        data1 = [abs(item-6) if index % 2 != 0 else item for sublist in data1_nonflat for index, item in enumerate(sublist)]
+        data2 = [abs(item-6) if index % 2 != 0 else item for sublist in data2_nonflat for index, item in enumerate(sublist)]
 
         ax[0].set_xticks(np.arange(1,6))
         ax[0].set_xticklabels(np.arange(1, 6), fontsize=12)
-        ax[0].set_xlim(1, 5)
+        ax[0].set_xlim(0, 6)
         ax[0].set_ylim(0, 0.5)
 
         ax[1].set_xticks(np.arange(1, 6))
         ax[1].set_xticklabels(np.arange(1, 6), fontsize=12)
-        ax[1].set_xlim(1, 5)
+        ax[1].set_xlim(0, 6)
         ax[1].set_ylim(0, 0.5)
 
-        n, bins, patches = ax[0].hist(data1,bins=5,edgecolor="black",density=1)
+        n, bins, patches = ax[0].hist(data1,np.arange(1,7)-.5,edgecolor="black",density=1)
         mean = np.mean(data1)
         std = np.std(data1)
         median = np.median(data1)
         vari = np.var(data1)
-        without_implicit += "Median: {}, Mean: {}, Standard deviation: {}, Variance: {}".format(median,rnd(mean),rnd(std),rnd(vari))
+        #without_implicit += "Median: {}, Mean: {}, Standard deviation: {}, Variance: {}".format(median,rnd(mean),rnd(std),rnd(vari))
         y = ((1 / (np.sqrt(2 * np.pi) * std)) *
              np.exp(-0.5 * (1 / std * (bins - mean)) ** 2))
         ax[0].plot(bins,y, "--")
-        ax[0].set_ylabel("Probability of response")
+        ax[0].set_ylabel("Distribution of responses")
         ax[0].set_xlabel("Likert score\n"+without_implicit)
 
-        n, bins, patches = ax[1].hist(data2, bins=5, edgecolor="black", density=1)
+        n, bins, patches = ax[1].hist(data2, np.arange(1,7)-.5, edgecolor="black", density=1)
         mean = np.mean(data2)
         std = np.std(data2)
         median = np.median(data2)
         vari = np.var(data2)
-        with_implicit += "Median: {}, Mean: {}, Standard deviation: {}, Variance: {}".format(median,rnd(mean),rnd(std),rnd(vari))
+        #with_implicit += "Median: {}, Mean: {}, Standard deviation: {}, Variance: {}".format(median,rnd(mean),rnd(std),rnd(vari))
         y2 = ((1 / (np.sqrt(2 * np.pi) * std)) *
              np.exp(-0.5 * (1 / std * (bins - mean)) ** 2))
         ax[1].plot(bins, y2, "--")
-        ax[1].set_ylabel("Probability of response")
+        ax[1].set_ylabel("Distribution of responses")
         ax[1].set_xlabel("Likert score\n"+with_implicit)
 
         fig.suptitle("Number of scores (1-5) across all questions. No implicit confirmation above,\n with implicit confirmation below ")
