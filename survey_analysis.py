@@ -149,7 +149,7 @@ def __plot_distribution(ax, show_yticks, show_ylabel, title, data, color=False, 
     if show_ylabel:
         if density:
             ax.set_ylabel("distribution of responses", fontsize=fontsize)
-            ax.set_xlabel("satisfaction score", fontsize=fontsize)
+            ax.set_xlabel("Likert score", fontsize=fontsize)
         else:
             ax.set_ylabel("# responses", fontsize=fontsize)
             ax.set_xlabel("Likert score", fontsize=fontsize)
@@ -170,8 +170,9 @@ def plot_distributions(survey, save_file):
     for i in range(8):
         __plot_distribution(ax[0][i], i == 0, False, f"Question {i + 1}", survey.get_question_scores(i, False))
         __plot_distribution(ax[1][i], i == 0, i == 0, None, survey.get_question_scores(i, True))
-    __plot_distribution(ax[0][8], False, False, "Satisfaction", survey.get_total_scores(False), color=True)
+    __plot_distribution(ax[0][8], False, False, None, survey.get_total_scores(False), color=True)
     __plot_distribution(ax[1][8], False, False, None, survey.get_total_scores(True), color=True)
+    ax[1][8].set_xlabel("UX-score", fontsize=20)
     plt.tight_layout()
     if save_file:
         plt.savefig("images/hist_question_score_responses.png", dpi=300)
@@ -181,8 +182,8 @@ def plot_condensed_distribution(survey, save_file):
     fig, ax = plt.subplots(1, 2, figsize=(18, 6), sharey="all", sharex="all")
     data_without = [x for i in range(8) for x in survey.get_question_scores(i, False)]
     data_with = [x for i in range(8) for x in survey.get_question_scores(i, True)]
-    __plot_distribution(ax[0], True, True, "Without implicit confirmation", data_without, density=True)
-    __plot_distribution(ax[1], False, False, "With implicit confirmation", data_with, density=True)
+    __plot_distribution(ax[0], True, True, "implicit confirmation OFF", data_without, density=True)
+    __plot_distribution(ax[1], False, True, "implicit confirmation ON", data_with, density=True)
     plt.tight_layout()
     if save_file:
         plt.savefig("images/hist_question_score_responses_condensed.png", dpi=300)
@@ -191,12 +192,12 @@ def plot_condensed_distribution(survey, save_file):
 def plot_error_bars(survey, save_file):
     fontsize = 20
     params = [
-        ("a", False, "A\nwithout"),
-        ("a", True, "A\nwith"),
-        ("b", False, "B\nwithout"),
-        ("b", True, "B\nwith"),
-        ("", False, "Total\nwithout"),
-        ("", True, "Total\nwith")
+        ("a", False, "A-OFF"),
+        ("a", True, "A-ON"),
+        ("b", False, "B-OFF"),
+        ("b", True, "B-ON"),
+        ("", False, "Total-OFF"),
+        ("", True, "Total-ON")
     ]
     means, sterrs, labels, xticks = [], [], [], []
     for i, param in enumerate(params):
@@ -213,7 +214,7 @@ def plot_error_bars(survey, save_file):
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
     ax.bar(xticks[:4], means[:4], yerr=sterrs[:4], align="center", alpha=0.5, ecolor="black", capsize=10)
     ax.bar(xticks[4:], means[4:], yerr=sterrs[4:], align="center", alpha=0.5, ecolor="black", capsize=10)
-    ax.set_ylabel("satisfaction score", fontsize=fontsize)
+    ax.set_ylabel("UX-score", fontsize=fontsize)
     ax.set_xticks(xticks)
     ax.set_xticklabels([p[2] for p in params], fontsize=fontsize)
     ax.yaxis.grid(True)
